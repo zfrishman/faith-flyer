@@ -61,8 +61,7 @@ def key_white(im):
     return im
 
 
-def crop_planes():
-    im = Image.open(SRC / "planes-right.jpg").convert("RGB")
+def runs_of(im):
     w, h = im.size
     px = im.load()
     cols = []
@@ -73,17 +72,75 @@ def crop_planes():
             if not is_paper(r, g, b):
                 ink += 1
         cols.append(ink)
-    runs = []
+    found = []
     on = None
     for x, ink in enumerate(cols):
         if ink > 6 and on is None:
             on = x
         elif ink <= 6 and on is not None:
             if x - on > 30:
-                runs.append((on, x - 1))
+                found.append((on, x - 1))
             on = None
     if on is not None and w - on > 30:
-        runs.append((on, w - 1))
+        found.append((on, w - 1))
+    return found
+
+
+def save_sprite(im, box, dest, max_w=520):
+    crop = key_white(im.crop(box))
+    bbox = crop.getbbox()
+    if bbox:
+        crop = crop.crop(bbox)
+    if crop.width > max_w:
+        nh = round(crop.height * max_w / crop.width)
+        crop = crop.resize((max_w, nh), Image.Resampling.LANCZOS)
+    dest = OUT / dest
+    crop.save(dest, "PNG", optimize=True)
+    print(f"{dest.name}: {crop.size} {dest.stat().st_size} bytes")
+    return dest
+
+
+def crop_row(src_name, names):
+    im = Image.open(SRC / src_name).convert("RGB")
+    found = runs_of(im)
+    if len(found) != len(names):
+        raise SystemExit(f"{src_name}: expected {len(names)} sprites, found {len(found)} {found}")
+    w, h = im.size
+    px = im.load()
+    for (x0, x1), name in zip(found, names):
+        if not name:
+            continue
+        top, bot = h, 0
+        for x in range(x0, x1 + 1):
+            for y in range(h):
+                r, g, b = px[x, y]
+                if not is_paper(r, g, b):
+                    top = min(top, y)
+                    bot = max(bot, y)
+        pad = 8
+        box = (max(0, x0 - pad), max(0, top - pad), min(w, x1 + pad + 1), min(h, bot + pad + 1))
+        save_sprite(im, box, name)
+
+
+def crop_grid(src_name, names, cols, rows):
+    im = Image.open(SRC / src_name).convert("RGB")
+    w, h = im.size
+    cw, ch = w / cols, h / rows
+    if len(names) != cols * rows:
+        raise SystemExit(f"{src_name}: name count {len(names)}")
+    for i, name in enumerate(names):
+        if not name:
+            continue
+        c, r = i % cols, i // cols
+        box = (int(c * cw), int(r * ch), int((c + 1) * cw), int((r + 1) * ch))
+        save_sprite(im, box, name, max_w=360)
+
+
+def crop_planes():
+    im = Image.open(SRC / "planes-right.jpg").convert("RGB")
+    w, h = im.size
+    px = im.load()
+    runs = runs_of(im)
     if len(runs) != 4:
         raise SystemExit(f"expected 4 planes, found {len(runs)}: {runs}")
     for i, (x0, x1) in enumerate(runs, start=1):
@@ -98,18 +155,19 @@ def crop_planes():
                         bot = y
         pad = 10
         box = (max(0, x0 - pad), max(0, top - pad), min(w, x1 + pad + 1), min(h, bot + pad + 1))
-        crop = key_white(im.crop(box))
-        # Trim fully transparent borders but keep a hair of padding.
-        bbox = crop.getbbox()
-        if bbox:
-            crop = crop.crop(bbox)
-        # Cap width so the PNGs stay light for an iPad.
-        if crop.width > 480:
-            nh = round(crop.height * 480 / crop.width)
-            crop = crop.resize((480, nh), Image.Resampling.LANCZOS)
-        dest = OUT / f"plane-{i}.png"
-        crop.save(dest, "PNG", optimize=True)
-        print(f"plane-{i}.png {crop.size} {dest.stat().st_size} bytes from {box}")
+        save_sprite(im, box, f"plane-{i}.png")
+
+
+ANIMALS = [
+    "animal-lion.png", "animal-zebra.png", "animal-elephant.png", "animal-giraffe.png",
+    "animal-sheep.png", "animal-bear.png", "animal-camel.png", "animal-kangaroo.png",
+    "animal-penguin.png", "animal-rabbit.png", "animal-owl.png", "animal-turtle.png",
+]
+TROPHIES = [
+    "trophy-fruit.png", "trophy-lily.png", "trophy-leaf.png", "trophy-butterfly.png",
+    "trophy-feather.png", "trophy-stone.png", "trophy-nest.png", "trophy-sunflower.png",
+    "trophy-olive.png", "trophy-dove.png", "trophy-rainbow.png", "trophy-hammer.png",
+]
 
 
 def main():
@@ -117,6 +175,11 @@ def main():
     for src, dest in SCENES.items():
         save_scene(src, dest)
     crop_planes()
+    crop_row("planes-eden-early.jpg", [f"eden-{i}.png" for i in range(1, 5)])
+    # Image 2 of the Noah sheet looks like a car, so it is skipped.
+    crop_row("planes-noah-early.jpg", ["noah-1.png", None, "noah-3.png", "noah-4.png"])
+    crop_grid("animals.jpg", ANIMALS, 4, 3)
+    crop_grid("trophies.jpg", TROPHIES, 4, 3)
 
 
 if __name__ == "__main__":
