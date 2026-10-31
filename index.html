@@ -53,11 +53,16 @@ button:disabled{background:#cfc3ae;box-shadow:0 6px 0 #b3a690;color:#fff}
 #photo img{width:100%;border-radius:16px}
 #hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#f6edd4;border:3px solid #e6c98a;border-radius:22px;padding:12px 18px;font-size:20px;color:#5a3b16;display:none;max-width:90vw;z-index:9;text-align:center}
 #hint button{min-height:50px;font-size:18px;padding:8px 16px;min-width:0}
+#dist .sub{display:block;font-size:15px;font-weight:600;opacity:.9}
+.bar{height:26px;background:#efe0c0;border-radius:999px;overflow:hidden;margin:10px auto;max-width:460px;border:3px solid #e6c98a}
+.bar>div{height:100%;background:linear-gradient(#f6d56a,#e09020)}
+.soon{box-shadow:0 6px 0 #c4842c,0 0 0 4px #f0d060}
+.lockbtn{opacity:.8}
 </style><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Faith Flyer"><meta name="theme-color" content="#ffc928"></head><body>
 <canvas id="c"></canvas>
-<div id="hud"><span class="pill" id="bl">✨ 0</span><span class="pill" id="info"></span><span class="hudbtns"><button id="cam" type="button" aria-label="Take a picture">📷</button><button id="mute" type="button">🔊</button></span></div>
-<div class="ui on" id="title"><div class="card"><h1>✈️ Faith Flyer</h1><img class="shopplane" src="art/plane-1.png" alt=""><p>Fly your little wooden plane through Bible stories!</p><p style="font-size:20px">Drag <b>toward the sky</b> to launch. Hold your finger <b>where you want to fly</b>. Collect glowing <b>blessings</b> ✨!</p><div id="levels"></div><div class="rowbtns"><button class="b" type="button" onclick="openShop()">🔧 Workshop</button><button type="button" onclick="openBook('title')">📖 Animal Book</button><button type="button" onclick="openTrophies()">🏆 Trophy Case</button></div></div></div>
-<div class="ui" id="shop"><div class="card"><h2>🔧 Workshop</h2><img id="shopplane" class="shopplane" alt="Your plane"><p>Blessings: <b id="sbl"></b> ✨</p><div class="up" id="ups"></div><h2 style="font-size:22px">Plane History</h2><div class="hist" id="history"></div><button class="g" type="button" onclick="show('title')">Done</button></div></div>
+<div id="hud"><span class="pill" id="dist">0 m<span class="sub" id="bestpill">Best 0 m</span></span><span class="pill" id="info">Garden of Eden</span><span class="hudbtns"><button id="cam" type="button" aria-label="Take a picture">📷</button><button id="mute" type="button">🔊</button></span></div>
+<div class="ui on" id="title"><div class="card"><h1>✈️ Faith Flyer</h1><img class="shopplane" src="art/plane-1.png" alt=""><p>One sky. Three Bible lands. Fly as far as you can!</p><p style="font-size:20px"><b>Flick up</b> to launch. <b>Hold</b> to climb. <b>Let go</b> to glide.</p><button class="g" type="button" id="fly" onclick="startRun()">▶ Fly</button><div class="rowbtns"><button class="b" type="button" onclick="openShop()">🔧 Workshop</button><button type="button" onclick="openBook('title')">📖 Animal Book</button><button type="button" onclick="openTrophies()">🏆 Trophy Case</button><button class="lockbtn" type="button" onclick="openMinis()">🔒 Mini-Games</button></div></div></div>
+<div class="ui" id="shop"><div class="card"><h2>🔧 Workshop</h2><img id="shopplane" class="shopplane" alt="Your plane"><p>Blessings: <b id="sbl"></b> ✨</p><h2 style="font-size:22px">Plane History</h2><div class="hist" id="history"></div><div class="up" id="ups"></div><button class="g" type="button" onclick="show('title')">Done</button></div></div>
 <div class="ui" id="story"><div class="card" id="storyc"></div></div>
 <div class="ui" id="end"><div class="card" id="endc"></div></div>
 <div class="ui" id="book"><div class="card" id="bookc"></div></div>
@@ -70,216 +75,184 @@ button:disabled{background:#cfc3ae;box-shadow:0 6px 0 #b3a690;color:#fff}
 const C=document.getElementById('c'),X=C.getContext('2d');let W,H,S;
 function rs(){const d=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;C.width=W*d;C.height=H*d;X.setTransform(d,0,0,d,0,0);S=H/820}addEventListener('resize',rs);rs();
 const $=id=>document.getElementById(id);
-const IMG={plane:[]};
-function loadArt(src,bake){const im=new Image();if(bake)im.onload=()=>{im.baked=bakeBg(im)};im.src=src;return im}
-IMG.eden=loadArt('art/bg-eden.webp',1);IMG.noah=loadArt('art/bg-noah.webp',1);IMG.tree=loadArt('art/end-tree.webp');IMG.ark=loadArt('art/end-ark.webp');
-IMG.edenP=[1,2,3,4].map(i=>loadArt('art/eden-'+i+'.png'));
-IMG.noahP={1:loadArt('art/noah-1.png'),3:loadArt('art/noah-3.png'),4:loadArt('art/noah-4.png')};
-for(let i=1;i<=4;i++)IMG.plane.push(loadArt('art/plane-'+i+'.png'));
+const M=8, AREA_M=1800, AREA=AREA_M*M, BLEND=320*M, GY=732;
+const AREAS=[
+ {id:'eden',name:'Garden of Eden',next:"Noah's Ark",line:'God made a good world, and he stays close.',bg:'eden',mark:'tree',sky:'#d7eefb'},
+ {id:'noah',name:"Noah's Ark",next:"Abraham's Tent",line:'God kept Noah safe through the storm.',bg:'noah',mark:'ark',sky:'#d5e6f0'},
+ {id:'abraham',name:"Abraham's Tent",next:'Garden of Eden',line:'God promised a family as many as the stars.',bg:'abraham',mark:'tent',sky:'#3a4e86'}
+];
 const BOOK=[{id:'lion',name:'Lion',pair:'2 lions'},{id:'zebra',name:'Zebra',pair:'2 zebras'},{id:'elephant',name:'Elephant',pair:'2 elephants'},{id:'giraffe',name:'Giraffe',pair:'2 giraffes'},{id:'sheep',name:'Sheep',pair:'2 sheep'},{id:'bear',name:'Bear',pair:'2 bears'},{id:'camel',name:'Camel',pair:'2 camels'},{id:'kangaroo',name:'Kangaroo',pair:'2 kangaroos'},{id:'penguin',name:'Penguin',pair:'2 penguins'},{id:'rabbit',name:'Rabbit',pair:'2 rabbits'},{id:'owl',name:'Owl',pair:'2 owls'},{id:'turtle',name:'Turtle',pair:'2 turtles'}];
 const EDEN_MAIN=[{id:'fruit',name:'Garden fruit',note:'God put fruit trees in the garden for people to enjoy. (Genesis 2:9)'},{id:'lily',name:'White lily',note:'God fills the world with flowers more lovely than any king. (Matthew 6:28-29)'},{id:'leaf',name:'Tree of Life leaf',note:'God put the tree of life in the middle of the garden. (Genesis 2:9)',rare:1},{id:'butterfly',name:'Butterfly',note:'God made every winged creature, and it was very good. (Genesis 1:21)'}];
 const EDEN_BONUS=[{id:'feather',name:'Peacock feather',note:'God made beautiful birds, and he saw that they were good. (Genesis 1:20-21)'},{id:'stone',name:'River stone',note:'A river watered the garden and flowed out from Eden. (Genesis 2:10)'},{id:'nest',name:"Bird's nest",note:'God made the birds of the sky and blessed them. (Genesis 1:22)'},{id:'sunflower',name:'Sunflower',note:'God made the plants and trees, and saw that they were good. (Genesis 1:12)'}];
-const NOAH_T=[{id:'olive',name:'Olive branch',note:'The dove brought Noah an olive leaf. The land was dry! (Genesis 8:11)'},{id:'dove',name:'Dove',note:'Noah sent a dove to see if the water had gone down. (Genesis 8:8)'},{id:'rainbow',name:'Rainbow',note:"God set a rainbow in the sky. It is his promise to care for the earth. (Genesis 9:13)"},{id:'hammer',name:'Hammer and plank',note:'Noah obeyed God and built the ark of gopher wood. (Genesis 6:14, 22)'}];
-BOOK.concat(EDEN_MAIN,EDEN_BONUS,NOAH_T).forEach(o=>{IMG[o.id]=loadArt('art/'+(BOOK.includes(o)?'animal-':'trophy-')+o.id+'.png')});
+const NOAH_T=[{id:'olive',name:'Olive branch',note:'The dove brought Noah an olive leaf. The land was dry! (Genesis 8:11)'},{id:'dove',name:'Dove',note:'Noah sent a dove to see if the water had gone down. (Genesis 8:8)'},{id:'rainbow',name:'Rainbow',note:'God set a rainbow in the sky. It is his promise to care for the earth. (Genesis 9:13)'},{id:'hammer',name:'Hammer and plank',note:'Noah obeyed God and built the ark of gopher wood. (Genesis 6:14, 22)'}];
+const ABR_T=[{id:'star',name:'Promise star',note:'God told Abraham to count the stars. His family would be just as many. (Genesis 15:5)'},{id:'tent',name:'Abraham\'s tent',note:'Abraham left home and lived in tents, trusting God to show the way. (Genesis 12:8)'},{id:'lamb',name:'Little lamb',note:'Abraham cared for his flocks while he waited on God\'s promise. (Genesis 13:2)'},{id:'staff',name:'Walking staff',note:'Abraham walked where God sent him, one step at a time. (Genesis 12:1, 4)'}];
+const ALL_T=[...EDEN_MAIN,...EDEN_BONUS,...NOAH_T,...ABR_T];
+const PLANES=[
+ {src:'art/eden-1.png',name:'Glider',year:'1903'},
+ {src:'art/eden-2.png',name:'Wright Flyer',year:'1903'},
+ {src:'art/eden-3.png',name:'Biplane',year:'1908'},
+ {src:'art/eden-4.png',name:'Red Biplane',year:'1909'},
+ {src:'art/noah-1.png',name:'Monoplane',year:'1909'},
+ {src:'art/noah-3.png',name:'Sky Biplane',year:'1910s'},
+ {src:'art/noah-4.png',name:'Gold Biplane',year:'1910s'},
+ {src:'art/abr-1.png',name:'Silver Plane',year:'1920s'},
+ {src:'art/abr-2.png',name:'Red Racer',year:'1930s'},
+ {src:'art/abr-3.png',name:'Seaplane',year:'1930s'},
+ {src:'art/abr-4.png',name:'Twin Engine',year:'1940s'}
+];
+const PCOST=[0,36,70,110,160,230,320,430,580,760,980];
+const UCOST=[24,52,95,160,250];
+const TRACKS=[{k:'engine',n:'Engine',d:'Fly faster'},{k:'wings',n:'Wings',d:'Glide longer'},{k:'fuel',n:'Stamina',d:'Stay up longer'},{k:'magnet',n:'Magnet',d:'Pull blessings in'},{k:'launch',n:'Launch',d:'Stronger flick'}];
+const MINIS=[{id:'clouds',name:'Cloud Hop',need:800},{id:'rainbow',name:'Rainbow Run',need:2500},{id:'stars',name:'Star Count',need:6000}];
+const STORIES={
+ eden:{t:'The Garden of Eden',img:'art/end-tree.webp',alt:'The Tree of Life',p:['In the beginning, God made the world. He made light, sky, land, and sea.','He made plants, animals, and people. He put them in a beautiful garden.','God looked at everything he had made and said it was very good.'],v:'"God saw all that he had made, and it was very good."',r:'Genesis 1:31'},
+ noah:{t:"Noah's Ark",img:'art/end-ark.webp',alt:"Noah's ark",p:['Noah loved God and did what was right. God asked him to build a big boat.','The animals came two by two. God kept Noah, his family, and the animals safe in the rain.','When the rain stopped, God put a rainbow in the sky. It was his promise to care for the earth.'],v:'"I have set my rainbow in the clouds."',r:'Genesis 9:13'},
+ abraham:{t:"Abraham's Promise",img:'art/end-abraham.webp',alt:"Abraham under the stars",p:['God asked Abraham to leave his home and go to a new land. Abraham trusted God and went.','He lived in a tent, with his sheep and camels, and he kept walking where God led.','One night God took him outside. The sky was full of stars. God said Abraham\'s family would become as many as those stars. Abraham believed, and that made God glad.'],v:'"Look now toward heaven, and count the stars... so shall thy seed be."',r:'Genesis 15:5, KJV'}
+};
+function bakeBg(img){const w=img.width,h=img.height,full=document.createElement('canvas');full.width=w*2;full.height=h;const g=full.getContext('2d');g.drawImage(img,0,0);g.save();g.translate(w*2,0);g.scale(-1,1);g.drawImage(img,0,0);g.restore();const gy=Math.round(h*.34),gh=h-gy,ground=document.createElement('canvas');ground.width=w*2;ground.height=gh;const gg=ground.getContext('2d');gg.drawImage(full,0,gy,w*2,gh,0,0,w*2,gh);gg.globalCompositeOperation='destination-in';const fade=gg.createLinearGradient(0,0,0,gh);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(.22,'rgba(0,0,0,1)');fade.addColorStop(1,'rgba(0,0,0,1)');gg.fillStyle=fade;gg.fillRect(0,0,ground.width,gh);return {full,ground}}
+function loadArt(src,bake){const im=new Image();if(bake)im.onload=()=>{im.baked=bakeBg(im)};im.src=src;return im}
+const IMG={eden:loadArt('art/bg-eden.webp',1),noah:loadArt('art/bg-noah.webp',1),abraham:loadArt('art/bg-abraham.webp',1),tree:loadArt('art/end-tree.webp'),ark:loadArt('art/end-ark.webp'),tent:loadArt('art/end-abraham.webp'),planes:PLANES.map(p=>loadArt(p.src))};
+BOOK.forEach(a=>IMG[a.id]=loadArt('art/animal-'+a.id+'.png'));
+[...EDEN_MAIN,...EDEN_BONUS,...NOAH_T].forEach(t=>IMG[t.id]=loadArt('art/trophy-'+t.id+'.png'));
+function icon(draw){const c=document.createElement('canvas');c.width=c.height=128;draw(c.getContext('2d'));const im=new Image();im.src=c.toDataURL();return im}
+IMG.star=icon(g=>{g.translate(64,64);g.fillStyle='#f0c14a';g.beginPath();for(let i=0;i<10;i++){const a=i*Math.PI/5-Math.PI/2,r=i%2?22:52;i?g.lineTo(Math.cos(a)*r,Math.sin(a)*r):g.moveTo(Math.cos(a)*r,Math.sin(a)*r)}g.closePath();g.fill()});
+IMG.tent=icon(g=>{g.fillStyle='#f3e2b0';g.beginPath();g.moveTo(64,18);g.lineTo(112,100);g.lineTo(16,100);g.closePath();g.fill();g.fillStyle='#e7b84a';g.fillRect(58,48,12,52);g.strokeStyle='#8a5a2a';g.lineWidth=4;g.stroke()});
+IMG.lamb=icon(g=>{g.fillStyle='#f7f4ee';g.beginPath();g.ellipse(58,78,36,26,0,0,7);g.fill();g.beginPath();g.arc(96,62,16,0,7);g.fill();g.fillStyle='#5a3b16';g.beginPath();g.arc(102,60,2.5,0,7);g.fill()});
+IMG.staff=icon(g=>{g.strokeStyle='#8a5a2a';g.lineWidth=10;g.lineCap='round';g.beginPath();g.moveTo(48,110);g.quadraticCurveTo(40,40,78,28);g.stroke()});
 function ready(im){return !!(im&&im.complete&&im.naturalWidth)}
-function stageIndex(){const u=G.up,n=u.wings+u.tail+u.prop+u.sling;return n>=15?3:n>=9?2:n>=4?1:0}
-function flightIm(){const s=stageIndex();return lv==1?IMG.noahP[s<=0?1:s===1?3:4]:IMG.edenP[s]}
-// ---------- save ----------
-let G=JSON.parse(localStorage.getItem('ff')||'null')||{b:0,up:{wings:0,tail:0,prop:0,sling:0},unl:1,muted:false,hint:false};
-if(!G.found)G.found={a:[],t:[]};if(!Array.isArray(G.found.a))G.found.a=[];if(!Array.isArray(G.found.t))G.found.t=[];
+let G=JSON.parse(localStorage.getItem('ff')||'null')||{};
+(function migrate(){
+ if(!G.up)G.up={};
+ if(G.up.engine==null){const o=G.up;G.up={engine:o.prop||0,wings:o.wings||0,fuel:Math.max(o.prop||0,o.tail||0),magnet:0,launch:o.sling||0}}
+ for(const k of ['engine','wings','fuel','magnet','launch']) if(G.up[k]==null)G.up[k]=0;
+ if(G.b==null)G.b=0; if(G.best==null)G.best=0; if(G.plane==null)G.plane=0; if(G.muted==null)G.muted=false; if(G.hint==null)G.hint=false;
+ if(!G.found)G.found={a:[],t:[]}; if(!Array.isArray(G.found.a))G.found.a=[]; if(!Array.isArray(G.found.t))G.found.t=[];
+ if(!Array.isArray(G.stories))G.stories=[]; if(!Array.isArray(G.milestones))G.milestones=[];
+})();
 const save=()=>localStorage.setItem('ff',JSON.stringify(G));
-const UP={wings:{n:'Wings',i:'🪽',d:'Glide farther'},tail:{n:'Tail',i:'🎏',d:'Steer smoother'},prop:{n:'Propeller',i:'🌀',d:'More flying power'},sling:{n:'Slingshot',i:'🏹',d:'Stronger launch'}};
-const MAX=5,cost=l=>[15,35,70,120,200][l];
-// ---------- levels ----------
-const LV=[
-{name:'Garden of Eden',len:5200,sky:['#8fd8ff','#e8fbff'],ground:'#5fbf4a',
- story:{t:'The Garden of Eden',p:['In the very beginning, God made everything! He made the sun, the stars, the seas, and every animal.','Then God made the first people, Adam and Eve. He gave them a beautiful garden called Eden to live in and take care of.','The garden was full of tall trees, sweet fruit, bright flowers, and friendly animals. God looked at everything He made and said it was very good!'],v:'"God saw all that he had made, and it was very good."',r:'Genesis 1:31'}},
-{name:"Noah's Ark",len:6400,sky:['#7d9bb8','#d6e4ee'],ground:'#4a8fc9',
- story:{t:"Noah Builds the Ark",p:['Noah loved God and always tried to do what was right. One day God told Noah to build a very big boat called an ark.','Noah obeyed God! He built the ark just the way God said. Then the animals came, two by two: lions, giraffes, elephants, and birds.','Noah, his family, and all the animals went inside. When the rain came, God kept them safe and dry in the ark.','After the rain stopped, God put a beautiful rainbow in the sky. It was His promise to always care for the earth.'],v:'"I have set my rainbow in the clouds. It is my promise to the earth."',r:'Genesis 9:13 (kid-friendly)'}}];
-const ANIMALS=['🦁','🦒','🐘','🐑','🐰','🐢','🦓','🐻'];
-// ---------- audio ----------
-let AC;function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state=='suspended')AC.resume();return AC}
-function tone(f,d=.12,type='sine',v=.15,slide=0,delay=0){if(G.muted)return;const a=ac();if(!a)return;const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02)}
-const SFX={coin:()=>{tone(880,.08,'triangle');tone(1320,.15,'triangle',.12,0,.07)},launch:()=>{tone(680,.06,'triangle',.2,240);tone(220,.16,'sine',.16,80,.04);tone(120,.1,'triangle',.07,60,.1)},bump:()=>tone(160,.25,'sine',.15,90),shutter:()=>tone(140,.05,'square',.07),
-pair:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,'triangle',.12,0,i*.08)),win:()=>[523,659,784,659,784,1047].forEach((f,i)=>tone(f,.22,'triangle',.13,0,i*.14)),click:()=>tone(600,.05,'square',.05)};
-let engine;function engineOn(on){const a=ac();if(!a)return;if(on&&!engine&&!G.muted){const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';o.frequency.value=70;g.gain.value=.025;o.connect(g).connect(a.destination);o.start();engine={o,g}}if(!on&&engine){engine.o.stop();engine=null}}
-$('mute').onclick=e=>{e.stopPropagation();G.muted=!G.muted;save();$('mute').textContent=G.muted?'🔇':'🔊';if(G.muted)engineOn(false);else{SFX.click();if(st=='fly'&&P.fuel>0)engineOn(true)}};$('mute').textContent=G.muted?'🔇':'🔊';
-// ---------- UI ----------
-function show(id){document.querySelectorAll('.ui').forEach(e=>e.classList.remove('on'));if(id)$(id).classList.add('on');if(id=='title')renderTitle();$('bl').textContent='✨ '+G.b}
-function renderTitle(){$('levels').innerHTML=LV.map((l,i)=>`<button class="g" ${i<G.unl?'':'disabled'} onclick="startLevel(${i})">${i<G.unl?'▶':'🔒'} ${i+1}. ${l.name}</button>`).join('<br>')}
-function openShop(){SFX.click();$('shopplane').src=lv==1?(stageIndex()<=0?'art/noah-1.png':stageIndex()===1?'art/noah-3.png':'art/noah-4.png'):'art/eden-'+(stageIndex()+1)+'.png';$('history').innerHTML=historyHTML();$('sbl').textContent=G.b;$('ups').innerHTML=Object.keys(UP).map(k=>{const l=G.up[k],c=cost(l);return`<div><b>${UP[k].i} ${UP[k].n}</b><br><span style="font-size:18px">${UP[k].d}</span><br><span class="pips">${'★'.repeat(l)}${'☆'.repeat(MAX-l)}</span><br>${l>=MAX?'<b>MAX!</b>':`<button ${G.b>=c?'':'disabled'} onclick="buy('${k}')">${c} ✨</button>`}</div>`}).join('');show('shop')}
-function buy(k){const before=stageIndex(),c=cost(G.up[k]);if(G.b>=c&&G.up[k]<MAX){G.b-=c;G.up[k]++;save();SFX.pair();if(stageIndex()!==before)toast('Your plane evolved!');openShop()}}
-// ---------- game state ----------
-let st='menu',lv=0,P,cam=0,items=[],clouds=[],deco=[],parts=[],runB=0,pairs=0,t=0,aim=null,touch=null,pid=null;
-const keys={up:false,down:false};
-const DEG=Math.PI/180,MIN_AIM=10*DEG,MAX_AIM=65*DEG,DEF_AIM=30*DEG;
-function startLevel(i){ac();SFX.click();lv=i;show(null);aim=null;touch=null;
- P={x:120,y:groundY()-170,vx:0,vy:0,ang:-DEF_AIM,fuel:1,steer:0,air:0};cam=0;runB=0;pairs=0;items=[];clouds=[];deco=[];parts=[];
- const L=LV[i];
- layBlessings(L);
- for(let x=-400;x<L.len+1200;x+=60+Math.random()*120)deco.push({x,s:.6+Math.random()*.8,t:Math.floor(Math.random()*3)});
- st='aim';$('info').textContent=L.name}
-const groundY=()=>H/S-70;
-// Natural early glide: climbs to mid-sky, then a slow sink. Items follow it.
-function blessY(x){const rise=Math.min(1,Math.max(0,(x-120)/420));return 578-rise*112+Math.max(0,x-700)*0.085}
-function layBlessings(L){if(!G.found)G.found={a:[],t:[]};const early=L.len*0.4;let n=0;
- for(let x=380;x<L.len-520;x+=x<early?105:175){const wave=Math.sin(n*0.85)*22+Math.sin(n*0.37)*10;
-  let px=x;if(n%3==0)px-=px%3;else if(px%3==0)px+=1;
-  const y=Math.max(140,Math.min(groundY()-100,blessY(px)+wave));
-  items.push({x:px,y,k:'b',got:0});
-  if(x<early&&n%2==0)items.push({x:px+40,y:Math.max(120,y-46),k:'b',got:0});
-  n++}
- const trophies=lv?NOAH_T:EDEN_MAIN.concat(EDEN_BONUS);
- const spots=lv?[1100,2300,3600,5000]:[760,1500,2400,Math.round(L.len*.8),1200,2000,3000,3800];
- trophies.forEach((t,i)=>{if(G.found.t.includes(t.id))return;const x=t.rare?Math.round(L.len*.8):spots[i];const y=Math.max(130,blessY(x)-(t.rare?170:125));items.push({x,y,k:'t',id:t.id,got:0})});
- if(lv==1){const pool=BOOK.filter(a=>!G.found.a.includes(a.id));const bag=(pool.length?pool:BOOK).slice();
-  for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const tmp=bag[i];bag[i]=bag[j];bag[j]=tmp}
-  [980,1900,2900,4000,5200].forEach((x,i)=>{const a=bag[i];if(!a||x>L.len-700)return;items.push({x,y:Math.max(150,blessY(x)-24),k:'a',id:a.id,pair:a.pair,got:0})});
-  for(let x=900;x<L.len-800;x+=520)clouds.push({x,y:Math.max(90,blessY(x)-300),r:54+(x%3)*8,hit:0})}}
-// Launch follows the drag (toward the sky), never the opposite pull-back.
-function aimShot(a){const sling=G.up.sling;let ang=DEF_AIM,pull=.72;
- if(a){const dx=(a.x-a.x0)/S,dy=(a.y-a.y0)/S,len=Math.hypot(dx,dy);
-  if(len>26){if(dx>8)ang=Math.atan2(-dy,dx);else ang=dy<0?MAX_AIM:MIN_AIM;
-   if(ang<MIN_AIM)ang=MIN_AIM;if(ang>MAX_AIM)ang=MAX_AIM;pull=Math.max(.72,Math.min(1,len/220))}}
- const pow=(4.05+sling*0.52)*(0.9+0.1*pull);
- return {ang,vx:pow*Math.cos(ang)+4.8+sling*0.5,vy:-(pow*Math.sin(ang)+0.7)}}
-function stepFlight(p,u,cmd,k){const powered=p.fuel>0;const fuelSecs=9.2+u.prop*1.25;
- if(powered){p.fuel-=k/60/fuelSecs;if(p.fuel<0)p.fuel=0}
- let cruise=(powered?0.36:1.15)-u.wings*0.06;
- p.steer=(p.steer||0)+(cmd-(p.steer||0))*Math.min((0.038+u.tail*0.012)*k,0.45);
- cruise-=p.steer*((powered?0.7:0.28)+u.tail*0.05);
- const lo=powered?-0.55:0.72-u.wings*0.07;
- if(cruise<lo)cruise=lo;if(cruise>2.35)cruise=2.35;
- p.vy+=(cruise-p.vy)*0.016*k;
- if(powered)p.vx+=(0.003+u.prop*0.0055)*k;
- p.vx+=u.wings*0.0045*k;p.vx*=1-0.0012*k;
- const minVx=5.8+u.wings*0.32+(powered?0.45:0);
- const maxVx=8.6+u.wings*0.4+u.prop*0.22+u.sling*0.18;
- if(p.vx<minVx)p.vx=minVx;if(p.vx>maxVx)p.vx=maxVx;
- const maxUp=Math.tan(58*DEG)*p.vx,maxDn=Math.tan(20*DEG)*p.vx;
- if(p.vy<-maxUp)p.vy=-maxUp;if(p.vy>maxDn)p.vy=maxDn;
- if(p.y<84){p.y=84;if(p.vy<0.2)p.vy=0.2}
- p.x+=p.vx*k;p.y+=p.vy*k}
-function launchFrom(a){const s=aimShot(a);P.vx=s.vx;P.vy=s.vy;P.fuel=1;P.steer=0;P.air=0;P.ang=-s.ang;st='fly';aim=null;SFX.launch();engineOn(true);if(!G.sawLaunch){G.sawLaunch=true;save()}}
-// ---------- input ----------
-function canPlayTarget(t){return !(t&&t.closest&&t.closest('button,a,.card,#hint'))}
-function arm(x,y){ac();if(st=='aim')aim={x0:x,y0:y,x,y};else if(st=='fly')touch={x,y}}
-function track(x,y){if(aim){aim.x=x;aim.y=y}if(touch&&st=='fly'){touch.x=x;touch.y=y}}
-function release(){if(aim&&st=='aim')launchFrom(aim);aim=null;touch=null;pid=null;touchId=null}
-let touchId=null,usingTouch=false;
-addEventListener('touchstart',e=>{if(st!='aim'&&st!='fly')return;if(!canPlayTarget(e.target)||touchId!=null)return;const t=e.changedTouches[0];touchId=t.identifier;usingTouch=true;arm(t.clientX,t.clientY);e.preventDefault()},{passive:false});
-addEventListener('touchmove',e=>{if(touchId==null)return;for(const t of e.changedTouches){if(t.identifier!==touchId)continue;track(t.clientX,t.clientY);e.preventDefault()}},{passive:false});
-addEventListener('touchend',e=>{for(const t of e.changedTouches){if(t.identifier!==touchId)continue;release()}},{passive:false});
-addEventListener('touchcancel',e=>{for(const t of e.changedTouches){if(t.identifier!==touchId)continue;release()}},{passive:false});
-addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||usingTouch)return;if(!canPlayTarget(e.target)||(st!='aim'&&st!='fly')||pid!=null)return;pid=e.pointerId;arm(e.clientX,e.clientY);try{C.setPointerCapture(e.pointerId)}catch(err){}});
-addEventListener('pointermove',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;track(e.clientX,e.clientY)});
-addEventListener('pointerup',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;release()});
-addEventListener('pointercancel',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;release()});
-addEventListener('keydown',e=>{if(e.key=='ArrowUp'){keys.up=true;e.preventDefault()}if(e.key=='ArrowDown'){keys.down=true;e.preventDefault()}if(st=='aim'&&e.key==' '){e.preventDefault();launchFrom(null)}});
-addEventListener('keyup',e=>{if(e.key=='ArrowUp')keys.up=false;if(e.key=='ArrowDown')keys.down=false});
-// ---------- update ----------
-function update(dt){if(dt==null)dt=1/60;const k=dt*60;t+=k;if(st!='fly')return;const u=G.up,L=LV[lv],gy=groundY();
- let cmd=0;
- if(touch){cmd=Math.max(-1,Math.min(1,(P.y-touch.y/S)/300));if(!G.sawSteer){G.sawSteer=true;save()}}
- else if(keys.up&&!keys.down)cmd=1;else if(keys.down&&!keys.up)cmd=-1;
- for(const c of clouds){const dx=P.x-c.x,dy=P.y-c.y;if(dx*dx+dy*dy<c.r*c.r){P.vy+=0.04*k;P.vx*=1-0.004*k;if(!c.hit){c.hit=1;SFX.bump()}}else c.hit=0}
- const hadFuel=P.fuel>0;stepFlight(P,u,cmd,k);if(hadFuel&&P.fuel<=0)engineOn(false);P.air+=dt;
- for(const it of items)if(!it.got&&Math.abs(it.x-P.x)<54&&Math.abs(it.y-P.y)<54){it.got=1;if(it.k=='b'){runB++;SFX.coin()}else if(it.k=='a'){runB+=10;pairs++;SFX.pair();if(!G.found.a.includes(it.id)){G.found.a.push(it.id);save();toast('You found '+it.pair+'!')}}else if(it.k=='t'){runB+=8;SFX.pair();if(!G.found.t.includes(it.id)){G.found.t.push(it.id);save();const meta=[...EDEN_MAIN,...EDEN_BONUS,...NOAH_T].find(t=>t.id===it.id);toast((meta?meta.name:'A treasure')+'!')}}for(let n=0;n<8;n++)parts.push({x:it.x,y:it.y,vx:Math.random()*6-3,vy:Math.random()*6-3,l:30})}
- P.ang=Math.atan2(P.vy,P.vx);cam=P.x-W/S*.3;
- parts=parts.filter(p=>(p.x+=p.vx,p.y+=p.vy,--p.l>0));
- if(P.y>gy-18){P.y=gy-18;if(P.x>L.len-350)finish(true);else finish(false)}
- else if(P.x>L.len+250)finish(true);
- $('bl').textContent='✨ '+(G.b+runB)}
-function finish(win){st='done';aim=null;touch=null;pid=null;touchId=null;engineOn(false);G.b+=runB;if(!G.sawSteer){G.sawSteer=true;save()}
- if(win){SFX.win();if(G.unl<lv+2&&lv+1<LV.length)G.unl=lv+2;save();const s=LV[lv].story;
-  setTimeout(()=>{const pic=lv?'art/end-ark.webp':'art/end-tree.webp',alt=lv?"Noah's ark with the animals, a rainbow, and a dove":'The glowing Tree of Life in a peaceful garden';$('storyc').innerHTML=`<img class="storyart" src="${pic}" alt="${alt}"><h2>📖 ${s.t}</h2>${s.p.map(x=>`<p>${x}</p>`).join('')}<p class="verse">${s.v}<br><b>— ${s.r}</b></p><p>You earned <b>${runB}</b> blessings ✨${lv==1?` and found <b>${pairs}</b> animal pairs!`:''}</p><button class="g" type="button" onclick="show('title')">${lv+1<LV.length?'Next Adventure ▶':'Home 🏠'}</button><button class="b" type="button" onclick="openShop()">🔧 Workshop</button><button type="button" onclick="takePhoto()">📷 Save picture</button>${lv==1?'<button type="button" onclick="openBook(\'story\')">📖 Animal Book</button>':''}`;show('story')},900)}
- else{save();SFX.bump();setTimeout(()=>{const pct=Math.round(Math.min(P.x/LV[lv].len,1)*100);const head=pct<36?'Bumpy landing! Try again!':pct<45?'Nice flying!':'Great flight!';const note=pct<36?'Drag toward the sky, then hold your finger up where you want to fly!':'Upgrade your plane in the Workshop to fly farther!';$('endc').innerHTML=`<h2>${head}</h2><p>You flew <b>${pct}%</b> of the way and gathered <b>${runB}</b> blessings ✨</p><p>${note}</p><button class="g" type="button" onclick="startLevel(${lv})">Try Again 🔁</button><button class="b" type="button" onclick="openShop()">🔧 Workshop</button><button type="button" onclick="takePhoto()">📷 Save picture</button>${lv==1?'<button type="button" onclick="openBook(\'end\')">📖 Animal Book</button>':''}<button type="button" onclick="show('title')">🏠</button>`;show('end')},700)}}
-// ---------- draw ----------
-function heart(x,y,r){const g=X.createRadialGradient(x,y-r*.1,r*.2,x,y,r*2.8);g.addColorStop(0,'rgba(255,220,120,.9)');g.addColorStop(.45,'rgba(255,186,50,.28)');g.addColorStop(1,'rgba(255,170,40,0)');X.fillStyle=g;X.beginPath();X.arc(x,y,r*2.8,0,7);X.fill();
- X.fillStyle='#e7a52e';X.beginPath();X.moveTo(x,y+r*.9);X.bezierCurveTo(x-r*1.55,y+r*.15,x-r*1.2,y-r*1.2,x,y-r*.35);X.bezierCurveTo(x+r*1.2,y-r*1.2,x+r*1.55,y+r*.15,x,y+r*.9);X.fill();
- X.fillStyle='rgba(255,228,150,.8)';X.beginPath();X.arc(x-r*.32,y-r*.28,r*.26,0,7);X.fill();
- X.fillStyle='rgba(255,250,220,.95)';for(let i=0;i<3;i++){const a=t*.07+i*2.1+x*.01;X.fillRect(x+Math.cos(a)*r*1.35-1,y+Math.sin(a*1.4)*r*1.15-1,2.4,2.4)}}
-function sparkle(x,y,r){const g=X.createRadialGradient(x,y,0,x,y,r*2.2);g.addColorStop(0,'rgba(255,236,170,.95)');g.addColorStop(1,'rgba(255,200,60,0)');X.fillStyle=g;X.beginPath();X.arc(x,y,r*2.2,0,7);X.fill()}
-function cloud(x,y,r,col){X.fillStyle=col;for(const[a,b,c]of[[0,0,1],[-.8,.2,.7],[.8,.2,.7],[-.4,-.4,.7],[.4,-.35,.75]]){X.beginPath();X.arc(x+a*r,y+b*r,c*r,0,7);X.fill()}}
-function spinProp(w,h){if(!(P.fuel>0&&(st=='fly'||st=='frozen')))return;const ang=t*(.18+P.fuel*1.05);X.save();X.translate(w*.42,h*.02);
- X.fillStyle='rgba(90,58,28,.25)';X.beginPath();X.arc(0,0,34,0,7);X.fill();
- for(let i=0;i<6;i++){X.save();X.rotate(ang+i*Math.PI/3);X.globalAlpha=i%2?.45:.92;X.fillStyle='#5c3a1e';X.fillRect(-4,-32,8,64);X.restore()}
- X.fillStyle='#f0d090';X.beginPath();X.arc(0,0,8,0,7);X.fill();X.restore()}
-function plane(){const im=flightIm();X.save();X.translate(P.x-cam,P.y);X.rotate(Math.max(-.6,Math.min(.6,P.ang||0)));
- if(ready(im)){const w=176,h=w*im.height/im.width;X.drawImage(im,-w*.5,-h*.5,w,h);spinProp(w,h);X.restore();return}
- X.restore();
- const u=G.up;X.save();X.translate(P.x-cam,P.y);X.rotate(Math.max(-.6,Math.min(.6,P.ang||0)));const wood=['#b07a3e','#c48a4a','#d9a05b','#e8b84d','#f0c040','#ffd34d'];
- // tail
- X.fillStyle=u.tail>2?'#d9534f':wood[u.tail];X.beginPath();X.moveTo(-48,-2);X.lineTo(-70,-30-u.tail*4);X.lineTo(-58,-2);X.fill();
- // body
- const bc=u.wings+u.prop+u.tail+u.sling;X.fillStyle=bc>8?'#4a90d9':bc>3?'#d9a05b':'#a8743a';X.beginPath();X.ellipse(0,0,56,15,0,0,7);X.fill();X.strokeStyle='#6b4520';X.lineWidth=2;X.stroke();
- if(bc<=3){X.strokeStyle='#8a5a2a';for(let i=-40;i<50;i+=18){X.beginPath();X.moveTo(i,-12);X.lineTo(i,12);X.stroke()}}
- X.fillStyle='#bfe6ff';X.beginPath();X.arc(14,-10,9,Math.PI,0);X.fill();
- // wings
- const wl=34+u.wings*7;X.fillStyle=u.wings>2?'#fff':wood[u.wings];X.beginPath();X.ellipse(0,4,wl,7,0,0,7);X.fill();X.stroke();if(u.wings>=4){X.fillStyle='#f5a623';X.beginPath();X.ellipse(0,4,wl,2,0,0,7);X.fill()}
- // propeller
- X.fillStyle='#555';X.fillRect(54,-4,6,8);const pr=12+u.prop*3,spin=P.fuel>0&&st=='fly'?t*.8:0;X.fillStyle=u.prop>2?'#f0c040':'#7a4e20';X.save();X.translate(60,0);X.scale(.3,1);X.rotate(spin);X.fillRect(-3,-pr,6,pr*2);X.restore();
- X.restore()}
-function bakeBg(img){const w=img.width,h=img.height,full=document.createElement('canvas');full.width=w*2;full.height=h;const g=full.getContext('2d');g.drawImage(img,0,0);g.save();g.translate(w*2,0);g.scale(-1,1);g.drawImage(img,0,0);g.restore();
- const gy=Math.round(h*.34),gh=h-gy,ground=document.createElement('canvas');ground.width=w*2;ground.height=gh;const gg=ground.getContext('2d');gg.drawImage(full,0,gy,w*2,gh,0,0,w*2,gh);gg.globalCompositeOperation='destination-in';const fade=gg.createLinearGradient(0,0,0,gh);fade.addColorStop(0,'rgba(0,0,0,0)');fade.addColorStop(.22,'rgba(0,0,0,1)');fade.addColorStop(1,'rgba(0,0,0,1)');gg.fillStyle=fade;gg.fillRect(0,0,ground.width,gh);gg.globalCompositeOperation='source-over';return {full,ground}}
-function scrollBake(canvas,sy,sh,dy,dh,speed){if(!canvas||sh<2)return;const sw=W/S,scale=dh/sh,tile=canvas.width*scale;let off=(cam*speed)%tile;if(off<0)off+=tile;const x=-off;X.drawImage(canvas,0,sy,canvas.width,sh,x,dy,tile,dh);if(x+tile<sw+1)X.drawImage(canvas,0,sy,canvas.width,sh,x+tile,dy,tile,dh)}
-function paintWorld(sw,gy){const bg=lv?IMG.noah:IMG.eden;X.fillStyle=lv?'#d5e6f0':'#d7eefb';X.fillRect(0,0,sw,820);
- if(ready(bg)&&bg.baked){const skyH=Math.round(bg.height*(lv?.6:.62));scrollBake(bg.baked.full,0,skyH,lv?-20:-40,lv?520:560,.15);const gh=bg.baked.ground.height;scrollBake(bg.baked.ground,0,gh,lv?330:360,lv?510:480,lv?.56:.5);return}
- const L=LV[lv],g=X.createLinearGradient(0,0,0,gy);g.addColorStop(0,L.sky[0]);g.addColorStop(1,L.sky[1]);X.fillStyle=g;X.fillRect(0,0,sw,820);
- X.fillStyle=lv?'#6b8aa5':'#8fd77a';for(let i=-1;i<sw/300+2;i++){const x=i*300-(cam*.3%300);X.beginPath();X.arc(x,gy+40,200,Math.PI,0);X.fill()}
- X.fillStyle=L.ground;X.fillRect(0,gy,sw,820-gy)}
-function drawLandmark(img,left,worldW,bottom){const h=worldW*img.height/img.width;X.drawImage(img,left-cam,bottom-h,worldW,h)}
-function finale(img,deck){const sw=W/S,gy=groundY(),landY=gy-18,bh=Math.max(860,(landY+30)/deck),bw=bh*img.width/img.height,landX=LV[lv].len-220,left=landX-bw*0.34;drawLandmark(img,left,bw,landY+(1-deck)*bh)}
-function landingGlow(wx,wy,amt){if(amt<=.02)return;const x=wx-cam;const g=X.createRadialGradient(x,wy,8,x,wy,240);g.addColorStop(0,`rgba(255,214,110,${.4*amt})`);g.addColorStop(1,'rgba(255,214,110,0)');X.fillStyle=g;X.beginPath();X.arc(x,wy,240,0,7);X.fill();
- for(let i=0;i<6;i++){const a=t*.05+i*1.05;sparkle(x+Math.cos(a)*110,wy+Math.sin(a*1.2)*36,4+i%2)}}
-function draw(){const L=LV[lv],sw=W/S,gy=groundY();X.save();X.scale(S,S);
- paintWorld(sw,gy);
- if(lv==0&&ready(IMG.tree))finale(IMG.tree,0.78);
- if(lv==1&&ready(IMG.ark))finale(IMG.ark,0.64);
- if((st=='fly'||st=='frozen')&&P){const goal=L.len-160,near=1-Math.min(1,Math.max(0,(goal-P.x)/780));landingGlow(goal,gy-70,near)}
- if(!ready(lv?IMG.noah:IMG.eden)){for(const d of deco){const x=d.x-cam;if(x<-100||x>sw+100)continue;if(lv==0){if(d.t==0){X.fillStyle='#7a4e20';X.fillRect(x-6,gy-70*d.s,12,70*d.s);X.fillStyle='#3fa34d';X.beginPath();X.arc(x,gy-80*d.s,38*d.s,0,7);X.fill()}else if(d.t==1){X.font=28*d.s+'px serif';X.fillText(['🌸','🌼','🌷'][Math.floor(d.x)%3],x,gy+4)}else{X.font=34*d.s+'px serif';X.fillText(['🐇','🦌','🦋','🐑'][Math.floor(d.x)%4],x,gy-4)}}}}
- // items
- for(const it of items){if(it.got)continue;const x=it.x-cam;if(x<-90||x>sw+90)continue;const bob=Math.sin(t*.08+it.x)*6,y=it.y+bob;if(it.k=='b')heart(x,y,15);else if(it.k=='a'||it.k=='t'){const im=IMG[it.id];if(it.k=='t'){sparkle(x,y,16);sparkle(x+12,y-10,6)}if(ready(im)){const w=it.k=='a'?78:58,h=w*im.height/im.width;X.drawImage(im,x-w/2,y-h/2,w,h)}else heart(x,y,12)}}
- for(const c of clouds){const x=c.x-cam;if(x<-220||x>sw+220)continue;cloud(x,c.y,c.r*.82,'rgba(176,196,214,.62)');cloud(x+c.r*.08,c.y-c.r*.08,c.r*.62,'rgba(232,240,246,.55)');X.strokeStyle='rgba(190,214,230,.7)';X.lineWidth=2;for(let k=0;k<4;k++){const rx=x-c.r*.5+k*c.r*.35,ry=c.y+c.r*.45+((t*2+k*18)%50);X.beginPath();X.moveTo(rx,ry);X.lineTo(rx-3,ry+12);X.stroke()}}
- for(const p of parts){sparkle(p.x-cam,p.y,4)}
- // slingshot
- const sx=120-cam;X.strokeStyle='#6b4520';X.lineWidth=12;X.beginPath();X.moveTo(sx,gy);X.lineTo(sx,gy-120);X.lineTo(sx-30,gy-180);X.moveTo(sx,gy-120);X.lineTo(sx+30,gy-180);X.stroke();
- if(st=='aim'){const restX=120,restY=gy-170;P.x=restX;P.y=restY;const shot=aimShot(aim);P.ang=-shot.ang;let bx=P.x-cam,by=P.y;if(aim){const dx=aim.x/S-(restX-cam),dy=aim.y/S-restY,len=Math.min(Math.hypot(dx,dy),210),a=Math.atan2(dy,dx||.001);P.x=restX+Math.cos(a)*len*.34;P.y=restY+Math.sin(a)*len*.34;P.ang=-shot.ang;bx=P.x-cam;by=P.y}X.strokeStyle=G.up.sling>2?'#d9534f':'#8a5a2a';X.lineWidth=7+G.up.sling+(aim?5:0);X.lineCap='round';X.beginPath();X.moveTo(sx-32,gy-180);X.quadraticCurveTo(bx,by+8,bx,by);X.moveTo(sx+32,gy-180);X.quadraticCurveTo(bx,by+8,bx,by);X.stroke();
-  if(aim){const q={x:P.x,y:P.y,vx:shot.vx,vy:shot.vy,fuel:1,steer:0};for(let i=0;i<16;i++){for(let s=0;s<4;s++)stepFlight(q,G.up,0,1);if(q.y>gy-24)break;X.fillStyle=i%2?'#fff6b0':'#ffc81e';X.strokeStyle='#c8963e';X.lineWidth=3;X.beginPath();X.arc(q.x-cam,q.y,i%3?5:7,0,7);X.fill();X.stroke()}}
-  banner(G.sawLaunch?'Drag toward the sky, then let go!':'Drag toward the sky, then let go!',164,!G.sawLaunch)}
- if(st=='fly'&&!G.sawSteer)banner('Hold your finger where you want to fly!',164,true);
- plane();
- // fuel bar
- if(st=='fly'||st=='aim'){const frac=Math.max(0,Math.min(1,P.fuel));X.fillStyle='rgba(255,255,255,.8)';X.fillRect(16,100,240,26);X.fillStyle='#f5a623';X.fillRect(19,103,234*frac,20);X.fillStyle='#4a3210';X.font='bold 18px sans-serif';X.fillText('🌀 Propeller power',24,120);
-  const pr=Math.min(P.x/L.len,1);X.fillStyle='rgba(255,255,255,.8)';X.fillRect(sw/2-200,100,400,14);X.fillStyle='#5cb85c';X.fillRect(sw/2-200,100,400*pr,14);X.font='26px serif';X.fillText('✈️',sw/2-215+400*pr,96);X.fillText(lv?'🚢':'🌳',sw/2+205,118)}
- X.restore()}
-function banner(text,y,big){const sw=W/S;X.save();X.textAlign='center';let size=big?38:28;X.font=`bold ${size}px Palatino,Georgia,serif`;while(size>18&&X.measureText(text).width>sw-100){size-=2;X.font=`bold ${size}px Palatino,Georgia,serif`}const w=Math.min(sw-36,X.measureText(text).width+56),h=big?76:60,x=(sw-w)/2,top=y-h/2,r=22;X.beginPath();X.moveTo(x+r,top);X.arcTo(x+w,top,x+w,top+h,r);X.arcTo(x+w,top+h,x,top+h,r);X.arcTo(x,top+h,x,top,r);X.arcTo(x,top,x+w,top,r);X.closePath();X.fillStyle='rgba(255,251,232,.96)';X.strokeStyle='#c8963e';X.lineWidth=5;X.fill();X.stroke();X.fillStyle='#4a3210';X.fillText(text,sw/2,y+(big?12:9));X.restore()}
-let photoBack='title',toastT;
-function toast(msg){const el=$('toast');el.textContent=msg;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>{el.style.display='none'},2300)}
-function slot(src,label,locked){return `<button type="button" class="slot ${locked?'lock':''}"><img src="${src}" alt="">${locked?'?':label}</button>`}
-function openBook(back){photoBack=back||'title';$('bookc').innerHTML=`<h2>📖 Animal Book</h2><p>Find Noah's animals, two by two.</p><div class="grid g4">${BOOK.map(a=>`<button type="button" class="slot ${G.found.a.includes(a.id)?'':'lock'}"><img src="art/animal-${a.id}.png" alt="">${G.found.a.includes(a.id)?a.name:'?'}</button>`).join('')}</div><button class="g" type="button" onclick="show('${back||'title'}')">Done</button>`;show('book')}
-function trophyNote(id){const t=[...EDEN_MAIN,...EDEN_BONUS,...NOAH_T].find(x=>x.id===id);if(!t)return;$('notec').innerHTML=`<img class="shopplane" src="art/trophy-${t.id}.png" alt=""><h2>${t.name}</h2><p>${t.note}</p><button class="g" type="button" onclick="openTrophies()">OK</button>`;show('note')}
-function shelf(title,list){return `<h2 style="font-size:26px">${title}</h2><div class="shelf grid g4">${list.map(t=>{const got=G.found.t.includes(t.id);return `<button type="button" class="slot ${got?'':'lock'}" ${got?`onclick="trophyNote('${t.id}')"`:''}><img src="art/trophy-${t.id}.png" alt="">${got?t.name:'?'}</button>`}).join('')}</div>`}
-function openTrophies(){$('casec').innerHTML=`<h2>🏆 Trophy Case</h2>${shelf('Garden of Eden',EDEN_MAIN)}${shelf('More from Eden',EDEN_BONUS)}${shelf("Noah's Ark",NOAH_T)}<button class="g" type="button" onclick="show('title')">Done</button>`;show('case')}
-function historyHTML(){const eden='art/eden-'+(stageIndex()+1)+'.png',noah=stageIndex()<=0?'art/noah-1.png':stageIndex()===1?'art/noah-3.png':'art/noah-4.png';const slots=[{y:'1903',img:eden,on:1},{y:'1910s',img:noah,on:1}];for(let i=3;i<=10;i++)slots.push({y:i===9?'747?':i===10?'Stealth?':String(i),on:0});return slots.map(s=>`<div class="era">${s.on?`<img src="${s.img}" alt="">`:`<div class="q">?</div>`}<b>${s.y}</b></div>`).join('')}
-async function takePhoto(){SFX.shutter();const flash=$('flash');flash.classList.remove('go');void flash.offsetWidth;flash.classList.add('go');const cap=Math.max(48,Math.round(C.width*.07));const out=document.createElement('canvas');out.width=C.width;out.height=C.height+cap;const o=out.getContext('2d');o.drawImage(C,0,0);o.fillStyle='#f6edd4';o.fillRect(0,C.height,out.width,cap);o.fillStyle='#5a3b16';o.font=`bold ${Math.round(cap*.45)}px Palatino,Georgia,serif`;o.textAlign='center';o.textBaseline='middle';o.fillText('Faith Flyer',out.width/2,C.height+cap/2);o.textAlign='left';o.font=`bold ${Math.round(C.width*.03)}px Palatino,Georgia,serif`;o.fillStyle='rgba(246,237,212,.94)';o.fillRect(18,18,Math.round(C.width*.28),Math.round(C.width*.055));o.fillStyle='#7a4e0e';o.textBaseline='middle';o.fillText(($('bl').textContent||'')+'  '+($('info').textContent||''),32,18+C.width*.028);const blob=await new Promise(r=>out.toBlob(r,'image/png'));const file=new File([blob],'faith-flyer.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Faith Flyer'});return}catch(e){if(e&&e.name==='AbortError')return}}const open=[...document.querySelectorAll('.ui.on')].map(e=>e.id).find(id=>id!=='photo')||'title';photoBack=open;$('photoimg').src=URL.createObjectURL(blob);show('photo')}
+let AC;function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC}
+function tone(f,d,type,v,slide,delay){if(G.muted)return;const a=ac();if(!a)return;const t0=a.currentTime+(delay||0),o=a.createOscillator(),g=a.createGain();o.type=type||'sine';o.frequency.setValueAtTime(f,t0);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,slide),t0+d);g.gain.setValueAtTime(v||.12,t0);g.gain.exponentialRampToValueAtTime(.001,t0+d);o.connect(g).connect(a.destination);o.start(t0);o.stop(t0+d+.02)}
+const SFX={launch(){tone(720,.05,'triangle',.18,260);tone(240,.14,'sine',.14,90,.04);tone(130,.09,'triangle',.06,70,.1)},coin(){tone(880,.07,'triangle',.12);tone(1320,.1,'triangle',.08,0,.06)},pair(){[523,659,784,1047].forEach((f,i)=>tone(f,.12,'triangle',.1,0,i*.07))},win(){[523,659,784,1047].forEach((f,i)=>tone(f,.16,'triangle',.12,0,i*.1))},bump(){tone(180,.18,'sine',.1,90)},click(){tone(600,.04,'square',.05)},shutter(){tone(160,.04,'square',.06)}};
+let st='menu',P,cam=0,things=[],nextSeg=0,runB=0,runBest=0,passed=0,runAreas=[],runStories=[],aim=null,touch=null,pid=null,touchId=null,t=0,banner=null;
+const areaIndex=x=>Math.floor(x/AREA), areaId=x=>((areaIndex(x)%3)+3)%3, metersOf=x=>Math.max(0,Math.floor(x/M));
+function speed(){return 6.1+G.up.engine*0.7+G.plane*0.38}
+function collectR(){return 76+G.up.magnet*14}
+function show(id){document.querySelectorAll('.ui').forEach(e=>e.classList.remove('on'));if(id){const n=$(id);if(n)n.classList.add('on')}}
+let toastT;function toast(msg){const el=$('toast');el.textContent=msg;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>el.style.display='none',2200)}
+function hud(){const m=st==='fly'||st==='skid'?metersOf(P.x):0;$('dist').innerHTML=m+' m<span class="sub" id="bestpill">Best '+G.best+' m</span>';$('info').textContent=(st==='fly'||st==='skid')?AREAS[areaId(P.x)].name+(areaIndex(P.x)>=3?' · Lap '+(Math.floor(areaIndex(P.x)/3)+1):''):'Ready'}
+function mulberry(seed){let s=seed>>>0;return ()=>{s=(Math.imul(1664525,s)+1013904223)>>>0;return s/4294967296}}
+function buildSegment(i){const base=i*AREA,id=i%3,rnd=mulberry(i*9973+17),area=AREAS[id];
+ for(let m=70;m<AREA_M-80;m+=46){const x=base+m*M;things.push({x,y:205,k:'b',got:0});things.push({x:x+18,y:470+Math.sin(m*.05)*36,k:'b',got:0});
+  if(m%180<24)for(let k=1;k<=3;k++)things.push({x:x+k*40,y:330-k*28,k:'b',got:0})}
+ for(let m=380;m<AREA_M-240;m+=640)things.push({x:base+m*M,y:390,k:'up',r:110});
+ if(rnd()>.25)things.push({x:base+(700+rnd()*600)*M,y:360,k:'rain',r:64,got:0});
+ const left=BOOK.filter(a=>!G.found.a.includes(a.id));
+ const bag=(left.length?left:BOOK).slice();
+ const count=id===1?3:1;
+ for(let n=0;n<count&&bag.length;n++){const j=Math.floor(rnd()*bag.length),a=bag.splice(j,1)[0];things.push({x:base+(420+n*460)*M,y:430,k:'a',id:a.id,pair:a.pair,got:0})}
+ const list=id===0?EDEN_MAIN.concat(EDEN_BONUS):id===1?NOAH_T:ABR_T;
+ list.forEach((tr,n)=>{if(G.found.t.includes(tr.id))return;const xm=tr.rare?AREA_M-520:360+n*300;things.push({x:base+xm*M,y:tr.rare?280:330,k:'t',id:tr.id,got:0})});
+ things.push({x:base+(AREA_M-480)*M,y:500,k:'mark',area:id,got:0,name:area.name});
+}
+function ensureWorld(x){const need=Math.floor(x/AREA)+2;while(nextSeg<=need){buildSegment(nextSeg);nextSeg++}things=things.filter(it=>it.x>x-2500||it.k==='mark')}
+function startRun(){ac();SFX.click();st='aim';P={x:80,y:500,vx:speed(),vy:0,ang:-.2,fuelT:9+G.up.fuel*1.8+G.plane*0.15,stamina:10+G.up.fuel*3.4+G.up.wings*2.4+G.plane*1.5,assist:0,air:0,boost:0,bounces:0};cam=0;things=[];nextSeg=0;runB=0;runBest=G.best;passed=0;runAreas=[];runStories=[];aim=null;touch=null;ensureWorld(0);show(null);hud()}
+function launchFrom(a,keep){const spd=speed();let pow=8.2+G.up.launch*0.85+G.plane*0.12;
+ if(a){const dy=(a.y0-a.y)/S,dt=Math.max(.05,(performance.now()-(a.t||performance.now()))/1000);if(dy>16&&dt<0.6)pow=Math.max(pow,Math.min(16,7+dy/dt*0.015))}
+ const finger=a?{x:a.x,y:a.y}:null;P.vy=-Math.min(4.4,pow*0.34);P.vx=spd;P.assist=1.15;P.ang=-.35;st='fly';aim=null;if(keep&&finger)touch=finger;else touch=null;SFX.launch()}
+function maybeAuto(){if(st!=='aim'||!aim)return;const held=(performance.now()-aim.t)/1000,moved=Math.hypot(aim.x-aim.x0,aim.y-aim.y0);if(held>0.28&&moved<34)launchFrom(aim,true)}
+function step(k,dt){const hold=!!touch,spd=speed()+(P.boost>0?1.6:0);P.vx+=(spd-P.vx)*0.08*k;const climbing=hold||P.assist>0;
+ let target=climbing?(P.fuelT>0?-1.9:-0.15):(P.fuelT>0?0.18-G.up.wings*0.02:0.9-G.up.wings*0.07);
+ const tired=Math.max(0,P.air-P.stamina);target+=Math.min(2.8,tired*0.12);
+ P.vy+=(target-P.vy)*0.05*k;P.vy=Math.max(-2.8,Math.min(2.3,P.vy));
+ if(P.y<150){P.y=150;if(P.vy<0)P.vy=0}
+ P.x+=P.vx*k;P.y+=P.vy*k;P.air+=dt;P.fuelT-=dt;if(P.assist>0)P.assist-=dt;if(P.boost>0)P.boost-=dt;
+ const want=Math.max(-.55,Math.min(.5,Math.atan2(P.vy,Math.max(3,P.vx))));P.ang+=(want-P.ang)*0.08*k;
+ const gy=GY;if(P.y>gy){P.y=gy;if(P.vy>0.35&&P.bounces<3){P.vy=-P.vy*0.32;P.vx*=0.9;P.bounces++;SFX.bump()}else{P.vx*=0.94;P.vy=0;st='skid'}if(P.vx<2.15)endRun()}}
+function skid(k,dt){P.vx*=Math.pow(0.94,k);P.x+=P.vx*k;P.y=GY;P.air+=dt;P.ang+=(0.15-P.ang)*0.1;if(P.vx<2.05)endRun()}
+function pickup(it){const R=collectR();if(it.k==='up'){if(Math.abs(it.x-P.x)<it.r&&Math.abs(it.y-P.y)<it.r+40)P.vy-=0.5;return}
+ if(it.k==='mark'){if(!it.got&&P.x>it.x){it.got=1;const id=AREAS[it.area].id;if(!G.stories.includes(id)){G.stories.push(id);save();runStories.push(id);toast('A new story is waiting!')}}return}
+ if(it.got)return;if(Math.abs(it.x-P.x)>R||Math.abs(it.y-P.y)>R)return;it.got=1;
+ if(it.k==='b'){runB++;SFX.coin()}
+ else if(it.k==='a'){runB+=10;SFX.pair();if(!G.found.a.includes(it.id)){G.found.a.push(it.id);save();toast('You found '+it.pair+'!')}}
+ else if(it.k==='t'){runB+=8;SFX.pair();if(!G.found.t.includes(it.id)){G.found.t.push(it.id);save();const meta=ALL_T.find(t=>t.id===it.id);toast((meta?meta.name:'A treasure')+'!')}}
+ else if(it.k==='rain'){runB+=6;P.boost=2.4;P.vy-=1.2;SFX.win();toast('Rainbow boost!')}
+}
+function endRun(){if(st==='done')return;st='done';aim=null;touch=null;pid=null;touchId=null;const m=metersOf(P.x);G.b+=runB;const rec=m>runBest;if(m>G.best)G.best=m;MINIS.forEach(g=>{if(G.best>=g.need&&!G.milestones.includes(g.id))G.milestones.push(g.id)});save();
+ const areas=[...new Set(runAreas)];
+ const head=rec&&runBest>0?'New record!':m<500?'Nice try! Flick up and hold to climb.':m<1400?'Lovely flight!':'What a flight!';
+ const nxt=nextGoal();const pct=nxt?Math.min(100,Math.round(G.b/nxt.cost*100)):100;
+ const stories=runStories.map(id=>`<button class="b" type="button" onclick="openStory('${id}')">📖 ${STORIES[id].t}</button>`).join('');
+ $('endc').innerHTML=`<h2>${head}</h2><p>You flew <b>${m} m</b>${rec?' — a new best!':''}</p><p>Blessings gathered: <b>${runB}</b> ✨ · You have <b>${G.b}</b></p><p>Lands: ${areas.join(' → ')||'Garden of Eden'}</p>${nxt?`<p>Next: ${nxt.label}</p><div class="bar"><div style="width:${pct}%"></div></div>`:'<p>You bought everything so far!</p>'}<button class="g" type="button" onclick="startRun()">Fly again ▶</button><button class="b" type="button" onclick="openShop()">🔧 Workshop</button><button type="button" onclick="takePhoto()">📷 Save picture</button>${stories}<button type="button" onclick="openBook('end')">📖 Animal Book</button><button type="button" onclick="show('title')">🏠</button>`;
+ show('end');SFX.bump()}
+function nextGoal(){let best=null;for(const tr of TRACKS){const lv=G.up[tr.k];if(lv>=5)continue;const c=UCOST[lv];if(!best||c<best.cost)best={label:tr.n+' '+(lv+1),cost:c,kind:'up',key:tr.k}}
+ if(G.plane<PLANES.length-1){const c=PCOST[G.plane+1];if(!best||c<best.cost)best={label:PLANES[G.plane+1].name,cost:c,kind:'plane'}}return best}
+function buyUp(k){const lv=G.up[k];if(lv>=5)return;const c=UCOST[lv];if(G.b<c)return;G.b-=c;G.up[k]++;save();SFX.pair();openShop()}
+function buyPlane(){if(G.plane>=PLANES.length-1)return;const c=PCOST[G.plane+1];if(G.b<c)return;G.b-=c;G.plane++;save();SFX.win();toast('Your plane evolved!');openShop()}
+function openShop(){SFX.click();const p=PLANES[G.plane];$('shopplane').src=p.src;$('sbl').textContent=G.b;
+ const tracks=TRACKS.map(tr=>{const lv=G.up[tr.k],c=lv>=5?0:UCOST[lv],soon=lv<5&&G.b<c&&G.b>=c*0.6;return `<div><b>${tr.n}</b><br><span style="font-size:18px">${tr.d}</span><br><span class="pips">${'★'.repeat(lv)}${'☆'.repeat(5-lv)}</span><br>${lv>=5?'<b>MAX!</b>':`<button type="button" class="${soon?'soon':''}" ${G.b>=c?'':'disabled'} onclick="buyUp('${tr.k}')">${c} ✨${soon?' · Almost!':''}</button>`}</div>`}).join('');
+ let planeBtn='<b>All planes for now!</b>';
+ if(G.plane<PLANES.length-1){const np=PLANES[G.plane+1],c=PCOST[G.plane+1],soon=G.b<c&&G.b>=c*0.6;planeBtn=`<img src="${np.src}" alt="" style="height:64px"><br><b>Next: ${np.name}</b> (${np.year})<br><button type="button" class="${soon?'soon':''}" ${G.b>=c?'':'disabled'} onclick="buyPlane()">${c} ✨${soon?' · Almost!':''}</button>`}
+ $('ups').innerHTML=tracks;$('history').innerHTML=historyHTML();
+ if(!$('planebuy'))$('ups').insertAdjacentHTML('beforebegin','<div id="planebuy"></div>');
+ $('planebuy').innerHTML=planeBtn;show('shop')}
+function historyHTML(){const owned=PLANES.map((p,i)=>`<div class="era">${i<=G.plane?`<img src="${p.src}" alt="">`:'<div class="q">?</div>'}<b>${p.year}</b></div>`).join('');return owned+'<div class="era"><div class="q">?</div><b>747?</b></div><div class="era"><div class="q">?</div><b>Stealth?</b></div>'}
+function openBook(back){$('bookc').innerHTML=`<h2>📖 Animal Book</h2><p>Find the animals, two by two. Most of them travel near Noah.</p><div class="grid g4">${BOOK.map(a=>{const got=G.found.a.includes(a.id);return `<button type="button" class="slot ${got?'':'lock'}"><img src="art/animal-${a.id}.png" alt="">${got?a.name:'?'}</button>`}).join('')}</div><button class="g" type="button" onclick="show('${back||'title'}')">Done</button>`;show('book')}
+function trophyNote(id){const t=ALL_T.find(x=>x.id===id);if(!t)return;const src=IMG[id]&&IMG[id].src?IMG[id].src:'';$('notec').innerHTML=`${src?`<img class="shopplane" src="${src}" alt="">`:''}<h2>${t.name}</h2><p>${t.note}</p><button class="g" type="button" onclick="openTrophies()">OK</button>`;show('note')}
+function shelf(title,list){return `<h2 style="font-size:26px">${title}</h2><div class="shelf grid g4">${list.map(t=>{const got=G.found.t.includes(t.id),src=IMG[t.id].src;return `<button type="button" class="slot ${got?'':'lock'}" ${got?`onclick="trophyNote('${t.id}')"`:''}><img src="${src}" alt="">${got?t.name:'?'}</button>`}).join('')}</div>`}
+function openTrophies(){$('casec').innerHTML=`<h2>🏆 Trophy Case</h2>${shelf('Garden of Eden',EDEN_MAIN)}${shelf('More from Eden',EDEN_BONUS)}${shelf("Noah's Ark",NOAH_T)}${shelf("Abraham's Tent",ABR_T)}<button class="g" type="button" onclick="show('title')">Done</button>`;show('case')}
+function openStory(id){const s=STORIES[id];if(!s)return;$('storyc').innerHTML=`<img class="storyart" src="${s.img}" alt="${s.alt}"><h2>📖 ${s.t}</h2>${s.p.map(x=>`<p>${x}</p>`).join('')}<p class="verse">${s.v}<br><b>— ${s.r}</b></p><button class="g" type="button" onclick="show('end')">Back</button><button type="button" onclick="show('title')">🏠</button>`;show('story')}
+function openMinis(){SFX.click();$('notec').innerHTML=`<h2>🔒 Mini-Games</h2><p>Coming soon! Fly farther to get ready.</p>${MINIS.map(g=>{const on=G.milestones.includes(g.id);return `<p>${on?'✨':'🔒'} <b>${g.name}</b> — ${on?'Ready when the games open':g.need+' m best'}</p>`}).join('')}<button class="g" type="button" onclick="show('title')">Done</button>`;show('note')}
+let photoBack='title';
 function closePhoto(){show(photoBack||'title')}
+async function takePhoto(){SFX.shutter();const flash=$('flash');flash.classList.remove('go');void flash.offsetWidth;flash.classList.add('go');const cap=Math.max(48,Math.round(C.width*.07));const out=document.createElement('canvas');out.width=C.width;out.height=C.height+cap;const o=out.getContext('2d');o.drawImage(C,0,0);o.fillStyle='#f6edd4';o.fillRect(0,C.height,out.width,cap);o.fillStyle='#5a3b16';o.font=`bold ${Math.round(cap*.45)}px Palatino,Georgia,serif`;o.textAlign='center';o.textBaseline='middle';o.fillText('Faith Flyer',out.width/2,C.height+cap/2);const blob=await new Promise(r=>out.toBlob(r,'image/png'));const file=new File([blob],'faith-flyer.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Faith Flyer'});return}catch(e){if(e&&e.name==='AbortError')return}}const open=[...document.querySelectorAll('.ui.on')].map(e=>e.id).find(id=>id&&id!=='photo')||'title';photoBack=open;$('photoimg').src=URL.createObjectURL(blob);show('photo')}
+function canPlay(el){return !(el&&el.closest&&el.closest('button,a,.card,#hint'))}
+function arm(x,y){ac();if(st==='aim')aim={x0:x,y0:y,x,y,t:performance.now()};else if(st==='fly')touch={x,y}}
+function track(x,y){if(aim){aim.x=x;aim.y=y}if(touch&&st==='fly'){touch.x=x;touch.y=y}}
+function releaseFinger(){if(aim&&st==='aim')launchFrom(aim,false);aim=null;touch=null;pid=null;touchId=null}
+addEventListener('touchstart',e=>{if(st!=='aim'&&st!=='fly')return;if(!canPlay(e.target)||touchId!=null)return;const tch=e.changedTouches[0];touchId=tch.identifier;arm(tch.clientX,tch.clientY);e.preventDefault()},{passive:false});
+addEventListener('touchmove',e=>{if(touchId==null)return;for(const tch of e.changedTouches){if(tch.identifier!==touchId)continue;track(tch.clientX,tch.clientY);e.preventDefault()}},{passive:false});
+addEventListener('touchend',e=>{for(const tch of e.changedTouches){if(tch.identifier!==touchId)continue;releaseFinger()}},{passive:false});
+addEventListener('touchcancel',e=>{for(const tch of e.changedTouches){if(tch.identifier!==touchId)continue;releaseFinger()}},{passive:false});
+addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;if(!canPlay(e.target)||(st!=='aim'&&st!=='fly')||pid!=null)return;pid=e.pointerId;arm(e.clientX,e.clientY);try{C.setPointerCapture(e.pointerId)}catch(err){}});
+addEventListener('pointermove',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;track(e.clientX,e.clientY)});
+addEventListener('pointerup',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;releaseFinger()});
+addEventListener('pointercancel',e=>{if(e.pointerType==='touch'||e.pointerId!==pid)return;releaseFinger()});
+$('mute').onclick=e=>{e.stopPropagation();G.muted=!G.muted;save();$('mute').textContent=G.muted?'🔇':'🔊';SFX.click()};$('mute').textContent=G.muted?'🔇':'🔊';
 $('cam').onclick=e=>{e.preventDefault();e.stopPropagation();takePhoto()};
-let prevT=0;function loop(now){const tnow=now||performance.now();let dt=prevT?(tnow-prevT)/1000:1/60;prevT=tnow;if(dt>0.05)dt=0.05;if(dt<0)dt=0;update(dt);if(st!='menu')draw();else drawMenu();C.dataset.st=st;if(P)C.dataset.x=String(Math.round(P.x));requestAnimationFrame(loop)}
-function drawMenu(){lv=0;P=P||{x:200,y:300,vx:6,vy:0,ang:0,fuel:1};cam=0;X.save();X.scale(S,S);paintWorld(W/S,groundY());for(let i=0;i<5;i++)heart((i*250+40)%(W/S+40),150+i*80,11);X.restore()}
-// ---------- iOS hint ----------
-const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform=='MacIntel'&&navigator.maxTouchPoints>1);
-const standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+function heart(x,y,r){const g=X.createRadialGradient(x,y,r*.2,x,y,r*2.6);g.addColorStop(0,'rgba(255,220,120,.9)');g.addColorStop(.5,'rgba(255,186,50,.25)');g.addColorStop(1,'rgba(255,170,40,0)');X.fillStyle=g;X.beginPath();X.arc(x,y,r*2.6,0,7);X.fill();X.fillStyle='#e7a52e';X.beginPath();X.moveTo(x,y+r*.9);X.bezierCurveTo(x-r*1.5,y+r*.1,x-r*1.15,y-r*1.15,x,y-r*.3);X.bezierCurveTo(x+r*1.15,y-r*1.15,x+r*1.5,y+r*.1,x,y+r*.9);X.fill()}
+function scrollBake(canvas,sy,sh,dy,dh,speed){if(!canvas||sh<2)return;const sw=W/S,scale=dh/sh,tile=canvas.width*scale;let off=(cam*speed)%tile;if(off<0)off+=tile;const x=-off;X.drawImage(canvas,0,sy,canvas.width,sh,x,dy,tile,dh);if(x+tile<sw+1)X.drawImage(canvas,0,sy,canvas.width,sh,x+tile,dy,tile,dh)}
+function paintBg(id,alpha){const im=IMG[AREAS[id].bg];X.save();X.globalAlpha=alpha;X.fillStyle=AREAS[id].sky;X.fillRect(0,0,W/S,820);if(ready(im)&&im.baked){const skyH=Math.round(im.height*.62);scrollBake(im.baked.full,0,skyH,-30,560,.16);scrollBake(im.baked.ground,0,im.baked.ground.height,340,500,.5)}X.restore()}
+function spinProp(w,h){const left=P?Math.max(0,P.stamina-P.air):0;if(!(left>0&&st==='fly'))return;const ratio=Math.min(1,left/Math.max(6,P.stamina));const ang=t*(.16+ratio*1.15);X.save();X.translate(w*.42,h*.02);X.fillStyle='rgba(90,58,28,.2)';X.beginPath();X.arc(0,0,34,0,7);X.fill();for(let i=0;i<6;i++){X.save();X.rotate(ang+i*Math.PI/3);X.globalAlpha=i%2?.38:.92;X.fillStyle='#5c3a1e';X.fillRect(-4,-32,8,64);X.restore()}X.fillStyle='#f0d090';X.beginPath();X.arc(0,0,9,0,7);X.fill();X.restore()}
+function drawPlane(){const im=IMG.planes[G.plane]||IMG.planes[0];X.save();X.translate(P.x-cam,P.y);X.rotate(Math.max(-.55,Math.min(.5,P.ang||0)));if(ready(im)){const w=170,h=w*im.height/im.width;X.drawImage(im,-w*.5,-h*.5,w,h);spinProp(w,h)}else{X.fillStyle='#c48a4a';X.beginPath();X.ellipse(0,0,50,14,0,0,7);X.fill()}X.restore()}
+function drawFlag(wx){const x=wx-cam,sw=W/S;if(x<-80||x>sw+80)return;X.strokeStyle='#8a5a2a';X.lineWidth=5;X.beginPath();X.moveTo(x,640);X.lineTo(x,470);X.stroke();X.fillStyle='#e05a4f';X.beginPath();X.moveTo(x,470);X.lineTo(x+78,494);X.lineTo(x,518);X.closePath();X.fill();X.fillStyle='#fffaf0';X.font='bold 18px Palatino,Georgia,serif';X.fillText('Best',x+12,500)}
+function draw(){const sw=W/S;if(!P)return;const idx=areaIndex(Math.max(0,P.x)),into=P.x-idx*AREA,fade=into>AREA-BLEND?(into-(AREA-BLEND))/BLEND:0;paintBg(areaId(P.x),1);if(fade>0)paintBg((areaId(P.x)+1)%3,Math.min(1,fade));
+ const gy=750;X.fillStyle='rgba(90,70,40,.15)';X.fillRect(0,gy,sw,820-gy);
+ for(const it of things){const x=it.x-cam;if(x<-400||x>sw+500)continue;const bob=Math.sin(t*.08+it.x)*.5*6;
+  if(it.k==='b'&&!it.got)heart(x,it.y+bob,13);
+  else if((it.k==='a'||it.k==='t')&&!it.got){const im=IMG[it.id];if(it.k==='t')heart(x,it.y,8);if(ready(im)){const w=it.k==='a'?76:54,h=w*im.height/Math.max(1,im.width);X.drawImage(im,x-w/2,it.y+bob-h/2,w,h)}}
+  else if(it.k==='up'){X.fillStyle='rgba(255,255,255,.28)';X.beginPath();X.ellipse(x,it.y+((t*3)%80)-40,26,50,0,0,7);X.fill()}
+  else if(it.k==='rain'&&!it.got){X.lineWidth=6;['#e86b6b','#f0c14a','#7ec87a','#6aa4e0'].forEach((col,i)=>{X.strokeStyle=col;X.beginPath();X.arc(x,it.y+30,28+i*7,Math.PI,0);X.stroke()})}
+  else if(it.k==='mark'){const im=IMG[AREAS[it.area].mark];if(ready(im)){const w=it.area===2?420:560,h=w*im.height/im.width;X.drawImage(im,x-w*.35,gy-h+10,w,h)}}}
+ if(runBest>40)drawFlag(runBest*M);
+ drawPlane();
+ if((st==='fly'||st==='aim')&&P){const frac=Math.max(0,Math.min(1,(P.stamina-P.air+6)/(P.stamina+6)));X.fillStyle='rgba(246,237,212,.9)';X.fillRect(16,168,220,22);X.fillStyle='#e7a23c';X.fillRect(19,171,214*frac,16);X.fillStyle='#5a3b16';X.font='bold 14px Palatino,Georgia,serif';X.fillText('Stamina',24,184)}
+ if(st==='aim'){X.fillStyle='rgba(255,251,232,.95)';X.strokeStyle='#c8963e';X.lineWidth=4;X.font='bold 32px Palatino,Georgia,serif';X.textAlign='center';const msg=aim?'Let go to fly!':'Flick up, or just tap!';const tw=Math.min(sw-40,X.measureText(msg).width+48);X.beginPath();X.roundRect?X.roundRect(sw/2-tw/2,120,tw,64,18):X.rect(sw/2-tw/2,120,tw,64);X.fill();X.stroke();X.fillStyle='#5a3b16';X.fillText(msg,sw/2,162);X.textAlign='left';
+  if(aim){const q={x:120,y:500,vy:-3.2};X.fillStyle='#ffe08a';for(let i=0;i<12;i++){q.x+=26;q.y+=q.vy;q.vy+=0.18;X.beginPath();X.arc(q.x-cam,q.y,4,0,7);X.fill()}}}
+ if(banner){X.fillStyle='rgba(246,237,212,.94)';X.strokeStyle='#e6c98a';X.lineWidth=4;X.font='bold 28px Palatino,Georgia,serif';X.textAlign='center';const w=Math.min(sw-30,720);X.fillRect(sw/2-w/2,688,w,78);X.strokeRect(sw/2-w/2,688,w,78);X.fillStyle='#5a3b16';X.fillText(banner.title,sw/2,722);X.font='20px Palatino,Georgia,serif';X.fillText(banner.line,sw/2,750);X.textAlign='left'}
+}
+function update(dt){if(dt==null)dt=1/60;const k=dt*60;t+=k;maybeAuto();if(st==='fly'||st==='skid'){ensureWorld(P.x+2000);if(st==='fly')step(k,dt);else skid(k,dt);
+  for(const it of things)pickup(it);
+  const name=AREAS[areaId(P.x)].name;if(!runAreas.includes(name))runAreas.push(name);
+  if(!passed&&runBest>30&&P.x>=runBest*M){passed=1;toast('You passed your best!');SFX.win()}
+  const idx=areaIndex(P.x),into=P.x-idx*AREA,fade=into>AREA-BLEND?(into-(AREA-BLEND))/BLEND:0;
+  if(fade>0.08&&fade<0.92){const a=AREAS[areaId(P.x)],lap=Math.floor((idx+1)/3)+1;banner={title:'Next stop: '+a.next+(a.next.startsWith('Garden')&&lap>1?' · Lap '+lap:''),line:a.line}}else banner=null;
+  const want=P.x-(W/S)*.3;cam+=(want-cam)*Math.min(.12*k,.45);hud()}
+ if(P){C.dataset.st=st;C.dataset.x=String(Math.round(P.x));C.dataset.m=String(metersOf(P.x));C.dataset.area=AREAS[areaId(Math.max(0,P.x))].name;C.dataset.lap=String(Math.floor(areaIndex(Math.max(0,P.x))/3)+1)}}
+function drawMenu(){cam=0;if(!P)P={x:0,y:400,ang:0,fuelT:1,vy:0,vx:4};const sw=W/S;paintBg(0,1);for(let i=0;i<4;i++)heart((i*260+40)%sw,160+i*70,12)}
+let prev=0;function loop(now){const n=now||performance.now();let dt=prev?(n-prev)/1000:1/60;prev=n;if(dt>0.05)dt=0.05;if(dt<0)dt=0;update(dt);X.save();X.scale(S,S);if(st==='menu')drawMenu();else draw();X.restore();requestAnimationFrame(loop)}
 function hideHint(){$('hint').style.display='none';G.hint=true;save()}
-if((isIOS&&!standalone&&!G.hint)||location.search.includes('hint'))setTimeout(()=>$('hint').style.display='block',1500);
-// ---------- debug/screenshot hooks ----------
-const Q=new URLSearchParams(location.search);
-if(Q.get('shot')=='noahfly'){G={b:140,up:{wings:2,tail:1,prop:2,sling:1},unl:2,muted:true,hint:true};startLevel(1);P.vx=7;P.vy=-1;st='fly';P.x=1500;P.y=330;for(let i=0;i<20;i++)update();P.fuel=.6;
- const c=clouds.find(c=>c.x>P.x+150);if(c){c.x=P.x+330;c.y=360}const a=items.find(i=>i.k=='a'&&i.x>P.x);if(a){a.x=P.x+600;a.y=260}st='fly';G.muted=true;Q.get('freeze')&&setTimeout(()=>st='frozen',300)}
-if(Q.get('shot')=='noahstory'){G={b:180,up:{wings:2,tail:1,prop:2,sling:1},unl:2,muted:true,hint:true};startLevel(1);P.x=6200;runB=47;pairs=3;finish(true)}
-if(Q.get('shot')=='edenfly'){G={b:40,up:{wings:1,tail:0,prop:0,sling:0},unl:1,muted:true,hint:true,sawLaunch:true,sawSteer:true};startLevel(0);st='frozen';P.x=640;P.y=400;P.vx=4;P.vy=.15;P.ang=.04;P.fuel=.85;cam=P.x-W/S*.34}
-if(Q.get('shot')=='edenland'){G={b:80,up:{wings:2,tail:1,prop:1,sling:1},unl:1,muted:true,hint:true,sawLaunch:true,sawSteer:true};startLevel(0);st='frozen';P.x=LV[0].len-240;P.y=groundY()-36;P.vx=2.4;P.vy=.3;P.ang=.12;P.fuel=.4;cam=P.x-W/S*.38}
-if(Q.get('shot')=='noahland'){G={b:140,up:{wings:3,tail:2,prop:2,sling:2},unl:2,muted:true,hint:true,sawLaunch:true,sawSteer:true};startLevel(1);st='frozen';P.x=LV[1].len-220;P.y=groundY()-48;P.vx=2.6;P.vy=.25;P.ang=.08;P.fuel=.45;cam=P.x-W/S*.36}
-renderTitle();show(st=='menu'?'title':null);if(Q.get('shot'))show(null),Q.get('shot')=='noahstory'&&setTimeout(()=>show('story'),1000);
-loop();
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if((isIOS&&!G.hint)||location.search.includes('hint'))setTimeout(()=>$('hint').style.display='block',1600);
+hud();show('title');requestAnimationFrame(loop);
+
 </script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'});</script></body></html>
