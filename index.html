@@ -28,7 +28,7 @@ button:disabled{background:#bbb;box-shadow:0 6px 0 #888}
 </style><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Faith Flyer"><meta name="theme-color" content="#ffc928"></head><body>
 <canvas id="c"></canvas>
 <div id="hud"><span class="pill" id="bl">✨ 0</span><span class="pill" id="info"></span><button id="mute">🔊</button></div>
-<div class="ui on" id="title"><div class="card"><h1>✈️ Faith Flyer</h1><p>Fly your little wooden plane through Bible stories!</p><p style="font-size:20px">Swipe <b>up</b> or <b>down</b> to steer. Collect glowing <b>blessings</b> ✨ and land safely!</p><div id="levels"></div><button class="b" onclick="openShop()">🔧 Workshop</button></div></div>
+<div class="ui on" id="title"><div class="card"><h1>✈️ Faith Flyer</h1><p>Fly your little wooden plane through Bible stories!</p><p style="font-size:20px">Drag <b>toward the sky</b> to launch. Hold your finger <b>where you want to fly</b>. Collect glowing <b>blessings</b> ✨!</p><div id="levels"></div><button class="b" onclick="openShop()">🔧 Workshop</button></div></div>
 <div class="ui" id="shop"><div class="card"><h2>🔧 Workshop</h2><p>Blessings: <b id="sbl"></b> ✨</p><div class="up" id="ups"></div><button class="g" onclick="show('title')">Done</button></div></div>
 <div class="ui" id="story"><div class="card" id="storyc"></div></div>
 <div class="ui" id="end"><div class="card" id="endc"></div></div>
@@ -62,43 +62,78 @@ function renderTitle(){$('levels').innerHTML=LV.map((l,i)=>`<button class="g" ${
 function openShop(){SFX.click();$('sbl').textContent=G.b;$('ups').innerHTML=Object.keys(UP).map(k=>{const l=G.up[k],c=cost(l);return`<div><b>${UP[k].i} ${UP[k].n}</b><br><span style="font-size:18px">${UP[k].d}</span><br><span class="pips">${'★'.repeat(l)}${'☆'.repeat(MAX-l)}</span><br>${l>=MAX?'<b>MAX!</b>':`<button ${G.b>=c?'':'disabled'} onclick="buy('${k}')">${c} ✨</button>`}</div>`}).join('');show('shop')}
 function buy(k){const c=cost(G.up[k]);if(G.b>=c&&G.up[k]<MAX){G.b-=c;G.up[k]++;save();SFX.pair();openShop()}}
 // ---------- game state ----------
-let st='menu',lv=0,P,cam=0,items=[],clouds=[],deco=[],parts=[],runB=0,pairs=0,t=0,aim=null;
-function startLevel(i){ac();SFX.click();lv=i;show(null);const u=G.up;
- P={x:0,y:0,vx:0,vy:0,ang:0,fuel:1,fuelMax:1+u.prop*.6,target:null};cam=0;runB=0;pairs=0;items=[];clouds=[];deco=[];parts=[];
+let st='menu',lv=0,P,cam=0,items=[],clouds=[],deco=[],parts=[],runB=0,pairs=0,t=0,aim=null,touch=null,pid=null;
+const keys={up:false,down:false};
+const DEG=Math.PI/180,MIN_AIM=10*DEG,MAX_AIM=65*DEG,DEF_AIM=30*DEG;
+function startLevel(i){ac();SFX.click();lv=i;show(null);aim=null;touch=null;
+ P={x:120,y:groundY()-170,vx:0,vy:0,ang:-DEF_AIM,fuel:1,steer:0,air:0};cam=0;runB=0;pairs=0;items=[];clouds=[];deco=[];parts=[];
  const L=LV[i];
- for(let x=500;x<L.len-500;x+=110+Math.random()*90){const h=150+Math.random()*450;items.push({x,y:h,k:'b',got:0});if(Math.random()<.3)items.push({x:x+40,y:h+60*(Math.random()<.5?-1:1),k:'b',got:0})}
- if(i==1){for(let x=900;x<L.len-700;x+=520+Math.random()*300)items.push({x,y:180+Math.random()*350,k:'a',a:ANIMALS[Math.floor(Math.random()*ANIMALS.length)],got:0});
-  for(let x=800;x<L.len-800;x+=380+Math.random()*260)clouds.push({x,y:120+Math.random()*380,r:70+Math.random()*40,hit:0})}
+ layBlessings(L);
  for(let x=-400;x<L.len+1200;x+=60+Math.random()*120)deco.push({x,s:.6+Math.random()*.8,t:Math.floor(Math.random()*3)});
- st='aim';P.x=120;P.y=groundY()-170;$('info').textContent=L.name}
+ st='aim';$('info').textContent=L.name}
 const groundY=()=>H/S-70;
+// Natural early glide: climbs to mid-sky, then a slow sink. Items follow it.
+function blessY(x){const rise=Math.min(1,Math.max(0,(x-120)/420));return 578-rise*112+Math.max(0,x-700)*0.085}
+function layBlessings(L){const early=L.len*0.4;let n=0;
+ for(let x=380;x<L.len-520;x+=x<early?105:175){const wave=Math.sin(n*0.85)*22+Math.sin(n*0.37)*10;
+  let px=x;if(n%3==0)px-=px%3;else if(px%3==0)px+=1;
+  const y=Math.max(140,Math.min(groundY()-100,blessY(px)+wave));
+  items.push({x:px,y,k:'b',got:0});
+  if(x<early&&n%2==0)items.push({x:px+40,y:Math.max(120,y-46),k:'b',got:0});
+  n++}
+ if(lv==1){let ai=0;for(let x=820;x<L.len-780;x+=460){const y=Math.max(160,blessY(x)-8);
+  items.push({x,y,k:'a',a:ANIMALS[ai%ANIMALS.length],got:0});ai++;
+  clouds.push({x:x+160,y:Math.max(90,blessY(x)-310),r:52+(ai%3)*8,hit:0})}}}
+// Launch follows the drag (toward the sky), never the opposite pull-back.
+function aimShot(a){const sling=G.up.sling;let ang=DEF_AIM,pull=.72;
+ if(a){const dx=(a.x-a.x0)/S,dy=(a.y-a.y0)/S,len=Math.hypot(dx,dy);
+  if(len>26){if(dx>8)ang=Math.atan2(-dy,dx);else ang=dy<0?MAX_AIM:MIN_AIM;
+   if(ang<MIN_AIM)ang=MIN_AIM;if(ang>MAX_AIM)ang=MAX_AIM;pull=Math.max(.72,Math.min(1,len/220))}}
+ const pow=(4.05+sling*0.52)*(0.9+0.1*pull);
+ return {ang,vx:pow*Math.cos(ang)+0.55+sling*0.2,vy:-(pow*Math.sin(ang)+0.7)}}
+function stepFlight(p,u,cmd,k){const powered=p.fuel>0;const fuelSecs=9.2+u.prop*1.25;
+ if(powered){p.fuel-=k/60/fuelSecs;if(p.fuel<0)p.fuel=0}
+ let cruise=(powered?0.36:1.15)-u.wings*0.06;
+ p.steer=(p.steer||0)+(cmd-(p.steer||0))*Math.min((0.038+u.tail*0.012)*k,0.45);
+ cruise-=p.steer*((powered?0.7:0.28)+u.tail*0.05);
+ const lo=powered?-0.55:0.72-u.wings*0.07;
+ if(cruise<lo)cruise=lo;if(cruise>2.35)cruise=2.35;
+ p.vy+=(cruise-p.vy)*0.016*k;
+ if(powered)p.vx+=(0.003+u.prop*0.0055)*k;
+ p.vx+=u.wings*0.0045*k;p.vx*=1-0.0012*k;
+ const minVx=2.55+u.wings*0.18+(powered?0.25:0);
+ const maxVx=4.15+u.wings*0.22+u.prop*0.08+u.sling*0.05;
+ if(p.vx<minVx)p.vx=minVx;if(p.vx>maxVx)p.vx=maxVx;
+ const maxUp=Math.tan(58*DEG)*p.vx,maxDn=Math.tan(20*DEG)*p.vx;
+ if(p.vy<-maxUp)p.vy=-maxUp;if(p.vy>maxDn)p.vy=maxDn;
+ if(p.y<84){p.y=84;if(p.vy<0.2)p.vy=0.2}
+ p.x+=p.vx*k;p.y+=p.vy*k}
+function launchFrom(a){const s=aimShot(a);P.vx=s.vx;P.vy=s.vy;P.fuel=1;P.steer=0;P.air=0;P.ang=-s.ang;st='fly';aim=null;SFX.launch();engineOn(true);if(!G.sawLaunch){G.sawLaunch=true;save()}}
 // ---------- input ----------
-let touch=null;
-function down(x,y){ac();if(st=='aim'){aim={x0:x,y0:y,x,y}}else if(st=='fly'){touch={y,ly:y}}}
-function move(x,y){if(aim){aim.x=x;aim.y=y}else if(touch){const dy=y-touch.ly;touch.ly=y;P.target=(P.target??0)+dy}}
-function up(){if(aim&&st=='aim'){const dx=(aim.x0-aim.x)/S,dy=(aim.y0-aim.y)/S;const pw=Math.min(Math.hypot(dx,dy),220)/220;if(pw>.12){const pow=(9+G.up.sling*2.4)*(.45+.55*pw);let a=Math.atan2(dy,Math.max(dx,10));a=Math.max(-.2,Math.min(1.1,a));P.vx=pow*Math.cos(a)+3;P.vy=-pow*Math.sin(a);st='fly';SFX.launch();engineOn(true)}aim=null}touch=null}
-C.addEventListener('pointerdown',e=>down(e.clientX,e.clientY));addEventListener('pointermove',e=>move(e.clientX,e.clientY));addEventListener('pointerup',up);addEventListener('pointercancel',up);
-addEventListener('keydown',e=>{if(st=='fly'){if(e.key=='ArrowUp')P.target=(P.target??0)-60;if(e.key=='ArrowDown')P.target=(P.target??0)+60}if(st=='aim'&&e.key==' '){aim={x0:300,y0:300,x:140,y:380};up()}});
+function down(e){if(pid!=null)return;if(e.target.closest&&e.target.closest('button,.ui.on'))return;if(st!='aim'&&st!='fly')return;pid=e.pointerId;ac();
+ if(st=='aim')aim={x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY};else touch={x:e.clientX,y:e.clientY}}
+function move(e){if(e.pointerId!==pid)return;if(aim){aim.x=e.clientX;aim.y=e.clientY}if(touch){touch.x=e.clientX;touch.y=e.clientY}}
+function up(e){if(e.pointerId!==pid)return;pid=null;if(aim&&st=='aim')launchFrom(aim);aim=null;touch=null}
+addEventListener('pointerdown',down);addEventListener('pointermove',move);addEventListener('pointerup',up);addEventListener('pointercancel',up);
+addEventListener('keydown',e=>{if(e.key=='ArrowUp'){keys.up=true;e.preventDefault()}if(e.key=='ArrowDown'){keys.down=true;e.preventDefault()}if(st=='aim'&&e.key==' '){e.preventDefault();launchFrom(null)}});
+addEventListener('keyup',e=>{if(e.key=='ArrowUp')keys.up=false;if(e.key=='ArrowDown')keys.down=false});
 // ---------- update ----------
-function update(){t++;if(st!='fly')return;const u=G.up,L=LV[lv],gy=groundY();
- // steering: swipe accumulates a pitch nudge
- const steer=.035+u.tail*.012;if(P.target){const n=Math.max(-40,Math.min(40,P.target));P.vy+=n*steer*.12;P.target-=n*(.25+u.tail*.05);if(Math.abs(P.target)<1)P.target=0}
- // power
- if(P.fuel>0){P.fuel-=.0022/P.fuelMax*1.0;P.vx+= (P.vx<6+u.prop*.8)?.06:0;P.vy-=.05;if(P.fuel<=0){engineOn(false)}}
- const lift=.12+u.wings*.03;P.vy+=.28-Math.min(lift*P.vx/8,.25);P.vy*=.985;P.vx*=.9985-(u.wings*.0002);P.vx=Math.max(P.vx,2.2);
- if(P.y<40){P.y=40;P.vy=Math.max(P.vy,0)}
- // clouds
- for(const c of clouds){const dx=P.x-c.x,dy=P.y-c.y;if(dx*dx+dy*dy<c.r*c.r){P.vy+=.35;P.vx*=.985;if(!c.hit){c.hit=1;SFX.bump()}}else c.hit=0}
- for(const it of items)if(!it.got&&Math.abs(it.x-P.x)<50&&Math.abs(it.y-P.y)<50){it.got=1;if(it.k=='b'){runB++;SFX.coin()}else{runB+=10;pairs++;SFX.pair()}for(let k=0;k<10;k++)parts.push({x:it.x,y:it.y,vx:Math.random()*6-3,vy:Math.random()*6-3,l:30})}
- P.x+=P.vx;P.y+=P.vy;P.ang=Math.atan2(P.vy,P.vx);cam=P.x-W/S*.3;
+function update(dt){if(dt==null)dt=1/60;const k=dt*60;t+=k;if(st!='fly')return;const u=G.up,L=LV[lv],gy=groundY();
+ let cmd=0;
+ if(touch){cmd=Math.max(-1,Math.min(1,(P.y-touch.y/S)/300));if(!G.sawSteer){G.sawSteer=true;save()}}
+ else if(keys.up&&!keys.down)cmd=1;else if(keys.down&&!keys.up)cmd=-1;
+ for(const c of clouds){const dx=P.x-c.x,dy=P.y-c.y;if(dx*dx+dy*dy<c.r*c.r){P.vy+=0.04*k;P.vx*=1-0.004*k;if(!c.hit){c.hit=1;SFX.bump()}}else c.hit=0}
+ const hadFuel=P.fuel>0;stepFlight(P,u,cmd,k);if(hadFuel&&P.fuel<=0)engineOn(false);P.air+=dt;
+ for(const it of items)if(!it.got&&Math.abs(it.x-P.x)<50&&Math.abs(it.y-P.y)<50){it.got=1;if(it.k=='b'){runB++;SFX.coin()}else{runB+=10;pairs++;SFX.pair()}for(let n=0;n<10;n++)parts.push({x:it.x,y:it.y,vx:Math.random()*6-3,vy:Math.random()*6-3,l:30})}
+ P.ang=Math.atan2(P.vy,P.vx);cam=P.x-W/S*.3;
  parts=parts.filter(p=>(p.x+=p.vx,p.y+=p.vy,--p.l>0));
- if(P.y>gy-18){P.y=gy-18;const atEnd=P.x>L.len-350;if(atEnd){finish(true)}else{finish(false)}}
- if(P.x>L.len+250&&st=='fly')finish(true);
+ if(P.y>gy-18){P.y=gy-18;if(P.x>L.len-350)finish(true);else finish(false)}
+ else if(P.x>L.len+250)finish(true);
  $('bl').textContent='✨ '+(G.b+runB)}
-function finish(win){st='done';engineOn(false);G.b+=runB;let html;
+function finish(win){st='done';aim=null;touch=null;pid=null;engineOn(false);G.b+=runB;if(!G.sawSteer){G.sawSteer=true;save()}
  if(win){SFX.win();if(G.unl<lv+2&&lv+1<LV.length)G.unl=lv+2;save();const s=LV[lv].story;
   setTimeout(()=>{$('storyc').innerHTML=`<h2>📖 ${s.t}</h2>${s.p.map(x=>`<p>${x}</p>`).join('')}<p class="verse">${s.v}<br><b>— ${s.r}</b></p><p>You earned <b>${runB}</b> blessings ✨${lv==1?` and found <b>${pairs}</b> animal pairs!`:''}</p><button class="g" onclick="show('title')">${lv+1<LV.length?'Next Adventure ▶':'Home 🏠'}</button><button class="b" onclick="openShop()">🔧 Workshop</button>`;show('story')},900)}
- else{save();SFX.bump();setTimeout(()=>{const pct=Math.round(Math.min(P.x/LV[lv].len,1)*100);$('endc').innerHTML=`<h2>Soft landing! 🌾</h2><p>You flew <b>${pct}%</b> of the way and gathered <b>${runB}</b> blessings ✨</p><p>Upgrade your plane in the Workshop to fly farther!</p><button class="g" onclick="startLevel(${lv})">Try Again 🔁</button><button class="b" onclick="openShop()">🔧 Workshop</button><button onclick="show('title')">🏠</button>`;show('end')},700)}}
+ else{save();SFX.bump();setTimeout(()=>{const pct=Math.round(Math.min(P.x/LV[lv].len,1)*100);const head=pct<36?'Bumpy landing! Try again!':pct<45?'Nice flying!':'Great flight!';const note=pct<36?'Drag toward the sky, then hold your finger up where you want to fly!':'Upgrade your plane in the Workshop to fly farther!';$('endc').innerHTML=`<h2>${head}</h2><p>You flew <b>${pct}%</b> of the way and gathered <b>${runB}</b> blessings ✨</p><p>${note}</p><button class="g" onclick="startLevel(${lv})">Try Again 🔁</button><button class="b" onclick="openShop()">🔧 Workshop</button><button onclick="show('title')">🏠</button>`;show('end')},700)}}
 // ---------- draw ----------
 function sparkle(x,y,r,heart){const g=X.createRadialGradient(x,y,0,x,y,r*2);g.addColorStop(0,'rgba(255,240,150,.9)');g.addColorStop(1,'rgba(255,215,0,0)');X.fillStyle=g;X.beginPath();X.arc(x,y,r*2,0,7);X.fill();X.fillStyle='#ffc81e';X.strokeStyle='#fff6b0';X.lineWidth=2;X.beginPath();
  if(heart){X.moveTo(x,y+r*.8);X.bezierCurveTo(x-r*1.4,y-r*.2,x-r*.6,y-r*1.2,x,y-r*.4);X.bezierCurveTo(x+r*.6,y-r*1.2,x+r*1.4,y-r*.2,x,y+r*.8)}else{for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.4:r;X.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}}X.closePath();X.fill();X.stroke()}
@@ -134,14 +169,17 @@ function draw(){const L=LV[lv],sw=W/S,gy=groundY();X.save();X.scale(S,S);
  for(const p of parts){sparkle(p.x-cam,p.y,4)}
  // slingshot
  const sx=120-cam;X.strokeStyle='#6b4520';X.lineWidth=12;X.beginPath();X.moveTo(sx,gy);X.lineTo(sx,gy-120);X.lineTo(sx-30,gy-180);X.moveTo(sx,gy-120);X.lineTo(sx+30,gy-180);X.stroke();
- if(st=='aim'){let px=120,py=gy-170;if(aim){const dx=(aim.x-aim.x0)/S,dy=(aim.y-aim.y0)/S,m=Math.min(Math.hypot(dx,dy),220),a=Math.atan2(dy,dx);px+=Math.cos(a)*m*.5;py+=Math.sin(a)*m*.5}P.x=px;P.y=py;X.strokeStyle=G.up.sling>2?'#d9534f':'#c8963e';X.lineWidth=5+G.up.sling;X.beginPath();X.moveTo(sx-30,gy-180);X.lineTo(px-cam-40,py);X.lineTo(sx+30,gy-180);X.stroke();
-  X.fillStyle='rgba(255,255,255,.9)';X.font='bold 34px sans-serif';X.textAlign='center';X.fillText(aim?'Let go to fly! ✈️':'👆 Pull back the slingshot, then let go!',sw/2,180);X.textAlign='left'}
+ if(st=='aim'){P.x=120;P.y=gy-170;const shot=aimShot(aim);P.ang=-shot.ang;X.strokeStyle=G.up.sling>2?'#d9534f':'#c8963e';X.lineWidth=5+G.up.sling;X.beginPath();X.moveTo(sx-30,gy-180);X.lineTo(P.x-cam,P.y);X.lineTo(sx+30,gy-180);X.stroke();
+  if(aim){const q={x:P.x,y:P.y,vx:shot.vx,vy:shot.vy,fuel:1,steer:0};for(let i=0;i<16;i++){for(let s=0;s<4;s++)stepFlight(q,G.up,0,1);if(q.y>gy-24)break;X.fillStyle=i%2?'#fff6b0':'#ffc81e';X.strokeStyle='#c8963e';X.lineWidth=3;X.beginPath();X.arc(q.x-cam,q.y,i%3?5:7,0,7);X.fill();X.stroke()}}
+  banner(G.sawLaunch?'Drag toward the sky, then let go!':'Drag toward the sky, then let go!',164,!G.sawLaunch)}
+ if(st=='fly'&&!G.sawSteer)banner('Hold your finger where you want to fly!',164,true);
  plane();
  // fuel bar
- if(st=='fly'||st=='aim'){X.fillStyle='rgba(255,255,255,.8)';X.fillRect(16,100,240,26);X.fillStyle='#f5a623';X.fillRect(19,103,234*Math.max(P.fuel,0),20);X.fillStyle='#4a3210';X.font='bold 18px sans-serif';X.fillText('🌀 Propeller power',24,120);
+ if(st=='fly'||st=='aim'){const frac=Math.max(0,Math.min(1,P.fuel));X.fillStyle='rgba(255,255,255,.8)';X.fillRect(16,100,240,26);X.fillStyle='#f5a623';X.fillRect(19,103,234*frac,20);X.fillStyle='#4a3210';X.font='bold 18px sans-serif';X.fillText('🌀 Propeller power',24,120);
   const pr=Math.min(P.x/L.len,1);X.fillStyle='rgba(255,255,255,.8)';X.fillRect(sw/2-200,100,400,14);X.fillStyle='#5cb85c';X.fillRect(sw/2-200,100,400*pr,14);X.font='26px serif';X.fillText('✈️',sw/2-215+400*pr,96);X.fillText(lv?'🚢':'🌳',sw/2+205,118)}
  X.restore()}
-function loop(){update();if(st!='menu')draw();else drawMenu();requestAnimationFrame(loop)}
+function banner(text,y,big){const sw=W/S;X.save();X.textAlign='center';let size=big?38:28;X.font=`bold ${size}px "Trebuchet MS",Verdana,sans-serif`;while(size>18&&X.measureText(text).width>sw-100){size-=2;X.font=`bold ${size}px "Trebuchet MS",Verdana,sans-serif`}const w=Math.min(sw-36,X.measureText(text).width+56),h=big?76:60,x=(sw-w)/2,top=y-h/2,r=22;X.beginPath();X.moveTo(x+r,top);X.arcTo(x+w,top,x+w,top+h,r);X.arcTo(x+w,top+h,x,top+h,r);X.arcTo(x,top+h,x,top,r);X.arcTo(x,top,x+w,top,r);X.closePath();X.fillStyle='rgba(255,251,232,.96)';X.strokeStyle='#c8963e';X.lineWidth=5;X.fill();X.stroke();X.fillStyle='#4a3210';X.fillText(text,sw/2,y+(big?12:9));X.restore()}
+let prevT=0;function loop(now){const tnow=now||performance.now();let dt=prevT?(tnow-prevT)/1000:1/60;prevT=tnow;if(dt>0.05)dt=0.05;if(dt<0)dt=0;update(dt);if(st!='menu')draw();else drawMenu();requestAnimationFrame(loop)}
 function drawMenu(){lv=0;P=P||{x:200,y:300,vx:6,vy:0,ang:0,fuel:1};cam=0;const L=LV[0];X.save();X.scale(S,S);const g=X.createLinearGradient(0,0,0,820);g.addColorStop(0,L.sky[0]);g.addColorStop(1,L.sky[1]);X.fillStyle=g;X.fillRect(0,0,W/S,820);for(let i=0;i<6;i++)sparkle((i*233+t)%(W/S),100+i*90,10,i%2);X.restore()}
 // ---------- iOS hint ----------
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform=='MacIntel'&&navigator.maxTouchPoints>1);
