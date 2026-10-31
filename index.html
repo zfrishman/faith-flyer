@@ -1,0 +1,158 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Faith Flyer"><meta name="theme-color" content="#7ec8f0">
+<title>Faith Flyer</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#7ec8f0;font-family:"Trebuchet MS",Verdana,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+canvas{display:block;position:fixed;inset:0;width:100vw;height:100vh}
+.ui{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(40,30,10,.35)}
+.ui.on{display:flex}
+.card{background:#fff8e6;border:6px solid #c8963e;border-radius:28px;padding:28px 36px;max-width:min(860px,90vw);max-height:88vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;color:#4a3210}
+h1{margin:.1em 0 .3em;font-size:clamp(30px,5vw,56px);color:#b5651d}
+h2{margin:.2em 0;font-size:clamp(24px,3.6vw,40px);color:#b5651d}
+p{font-size:clamp(19px,2.5vw,28px);line-height:1.45;margin:.5em 0}
+.verse{background:#fff1c4;border-radius:18px;padding:12px 18px;font-style:italic;border:3px dashed #e0b040}
+button{font:inherit;font-size:clamp(20px,2.6vw,30px);font-weight:bold;border:0;border-radius:22px;padding:16px 30px;margin:10px;min-height:72px;min-width:150px;background:#f5a623;color:#fff;box-shadow:0 6px 0 #b8741a;cursor:pointer}
+button:active{transform:translateY(4px);box-shadow:0 2px 0 #b8741a}
+button.g{background:#5cb85c;box-shadow:0 6px 0 #3d8b3d}button.b{background:#4a90d9;box-shadow:0 6px 0 #2f6aa8}
+button:disabled{background:#bbb;box-shadow:0 6px 0 #888}
+.up{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:12px 0}
+.up div{background:#fff;border:3px solid #e8c88a;border-radius:18px;padding:10px}
+.up b{font-size:clamp(20px,2.4vw,28px)}.pips{font-size:24px;color:#f5a623}
+#hud{position:fixed;top:max(12px,env(safe-area-inset-top));left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:0 16px;pointer-events:none}
+#hud .pill{background:rgba(255,255,255,.85);border-radius:30px;padding:10px 20px;font-size:28px;font-weight:bold;color:#7a4e0e}
+#mute{pointer-events:auto;width:76px;height:76px;min-width:0;padding:0;font-size:36px;margin:0;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 4px 0 #aaa}
+#hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#fffbe8;border:3px solid #c8963e;border-radius:20px;padding:12px 18px;font-size:20px;color:#4a3210;display:none;max-width:90vw;z-index:9;text-align:center}
+#hint button{min-height:50px;font-size:18px;padding:8px 16px;min-width:0}
+</style><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Faith Flyer"><meta name="theme-color" content="#ffc928"></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span class="pill" id="bl">✨ 0</span><span class="pill" id="info"></span><button id="mute">🔊</button></div>
+<div class="ui on" id="title"><div class="card"><h1>✈️ Faith Flyer</h1><p>Fly your little wooden plane through Bible stories!</p><p style="font-size:20px">Swipe <b>up</b> or <b>down</b> to steer. Collect glowing <b>blessings</b> ✨ and land safely!</p><div id="levels"></div><button class="b" onclick="openShop()">🔧 Workshop</button></div></div>
+<div class="ui" id="shop"><div class="card"><h2>🔧 Workshop</h2><p>Blessings: <b id="sbl"></b> ✨</p><div class="up" id="ups"></div><button class="g" onclick="show('title')">Done</button></div></div>
+<div class="ui" id="story"><div class="card" id="storyc"></div></div>
+<div class="ui" id="end"><div class="card" id="endc"></div></div>
+<div id="hint">📱 Tip: tap <b>Share</b> <span style="font-size:24px">⬆️</span> then <b>Add to Home Screen</b> to play full-screen! <button onclick="hideHint()">OK</button></div>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');let W,H,S;
+function rs(){const d=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;C.width=W*d;C.height=H*d;X.setTransform(d,0,0,d,0,0);S=H/820}addEventListener('resize',rs);rs();
+const $=id=>document.getElementById(id);
+// ---------- save ----------
+let G=JSON.parse(localStorage.getItem('ff')||'null')||{b:0,up:{wings:0,tail:0,prop:0,sling:0},unl:1,muted:false,hint:false};
+const save=()=>localStorage.setItem('ff',JSON.stringify(G));
+const UP={wings:{n:'Wings',i:'🪽',d:'Glide farther'},tail:{n:'Tail',i:'🎏',d:'Steer smoother'},prop:{n:'Propeller',i:'🌀',d:'More flying power'},sling:{n:'Slingshot',i:'🏹',d:'Stronger launch'}};
+const MAX=5,cost=l=>[15,35,70,120,200][l];
+// ---------- levels ----------
+const LV=[
+{name:'Garden of Eden',len:5200,sky:['#8fd8ff','#e8fbff'],ground:'#5fbf4a',
+ story:{t:'The Garden of Eden',p:['In the very beginning, God made everything! He made the sun, the stars, the seas, and every animal.','Then God made the first people, Adam and Eve. He gave them a beautiful garden called Eden to live in and take care of.','The garden was full of tall trees, sweet fruit, bright flowers, and friendly animals. God looked at everything He made and said it was very good!'],v:'"God saw all that he had made, and it was very good."',r:'Genesis 1:31'}},
+{name:"Noah's Ark",len:6400,sky:['#7d9bb8','#d6e4ee'],ground:'#4a8fc9',
+ story:{t:"Noah Builds the Ark",p:['Noah loved God and always tried to do what was right. One day God told Noah to build a very big boat called an ark.','Noah obeyed God! He built the ark just the way God said. Then the animals came, two by two: lions, giraffes, elephants, and birds.','Noah, his family, and all the animals went inside. When the rain came, God kept them safe and dry in the ark.','After the rain stopped, God put a beautiful rainbow in the sky. It was His promise to always care for the earth.'],v:'"I have set my rainbow in the clouds. It is my promise to the earth."',r:'Genesis 9:13 (kid-friendly)'}}];
+const ANIMALS=['🦁','🦒','🐘','🐑','🐰','🐢','🦓','🐻'];
+// ---------- audio ----------
+let AC;function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(AC&&AC.state=='suspended')AC.resume();return AC}
+function tone(f,d=.12,type='sine',v=.15,slide=0,delay=0){if(G.muted)return;const a=ac();if(!a)return;const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d+.02)}
+const SFX={coin:()=>{tone(880,.08,'triangle');tone(1320,.15,'triangle',.12,0,.07)},launch:()=>tone(200,.5,'sawtooth',.08,700),bump:()=>tone(160,.25,'sine',.15,90),
+pair:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,'triangle',.12,0,i*.08)),win:()=>[523,659,784,659,784,1047].forEach((f,i)=>tone(f,.22,'triangle',.13,0,i*.14)),click:()=>tone(600,.05,'square',.05)};
+let engine;function engineOn(on){const a=ac();if(!a)return;if(on&&!engine&&!G.muted){const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';o.frequency.value=70;g.gain.value=.025;o.connect(g).connect(a.destination);o.start();engine={o,g}}if(!on&&engine){engine.o.stop();engine=null}}
+$('mute').onclick=e=>{e.stopPropagation();G.muted=!G.muted;save();$('mute').textContent=G.muted?'🔇':'🔊';if(G.muted)engineOn(false);else{SFX.click();if(st=='fly'&&P.fuel>0)engineOn(true)}};$('mute').textContent=G.muted?'🔇':'🔊';
+// ---------- UI ----------
+function show(id){document.querySelectorAll('.ui').forEach(e=>e.classList.remove('on'));if(id)$(id).classList.add('on');if(id=='title')renderTitle();$('bl').textContent='✨ '+G.b}
+function renderTitle(){$('levels').innerHTML=LV.map((l,i)=>`<button class="g" ${i<G.unl?'':'disabled'} onclick="startLevel(${i})">${i<G.unl?'▶':'🔒'} ${i+1}. ${l.name}</button>`).join('<br>')}
+function openShop(){SFX.click();$('sbl').textContent=G.b;$('ups').innerHTML=Object.keys(UP).map(k=>{const l=G.up[k],c=cost(l);return`<div><b>${UP[k].i} ${UP[k].n}</b><br><span style="font-size:18px">${UP[k].d}</span><br><span class="pips">${'★'.repeat(l)}${'☆'.repeat(MAX-l)}</span><br>${l>=MAX?'<b>MAX!</b>':`<button ${G.b>=c?'':'disabled'} onclick="buy('${k}')">${c} ✨</button>`}</div>`}).join('');show('shop')}
+function buy(k){const c=cost(G.up[k]);if(G.b>=c&&G.up[k]<MAX){G.b-=c;G.up[k]++;save();SFX.pair();openShop()}}
+// ---------- game state ----------
+let st='menu',lv=0,P,cam=0,items=[],clouds=[],deco=[],parts=[],runB=0,pairs=0,t=0,aim=null;
+function startLevel(i){ac();SFX.click();lv=i;show(null);const u=G.up;
+ P={x:0,y:0,vx:0,vy:0,ang:0,fuel:1,fuelMax:1+u.prop*.6,target:null};cam=0;runB=0;pairs=0;items=[];clouds=[];deco=[];parts=[];
+ const L=LV[i];
+ for(let x=500;x<L.len-500;x+=110+Math.random()*90){const h=150+Math.random()*450;items.push({x,y:h,k:'b',got:0});if(Math.random()<.3)items.push({x:x+40,y:h+60*(Math.random()<.5?-1:1),k:'b',got:0})}
+ if(i==1){for(let x=900;x<L.len-700;x+=520+Math.random()*300)items.push({x,y:180+Math.random()*350,k:'a',a:ANIMALS[Math.floor(Math.random()*ANIMALS.length)],got:0});
+  for(let x=800;x<L.len-800;x+=380+Math.random()*260)clouds.push({x,y:120+Math.random()*380,r:70+Math.random()*40,hit:0})}
+ for(let x=-400;x<L.len+1200;x+=60+Math.random()*120)deco.push({x,s:.6+Math.random()*.8,t:Math.floor(Math.random()*3)});
+ st='aim';P.x=120;P.y=groundY()-170;$('info').textContent=L.name}
+const groundY=()=>H/S-70;
+// ---------- input ----------
+let touch=null;
+function down(x,y){ac();if(st=='aim'){aim={x0:x,y0:y,x,y}}else if(st=='fly'){touch={y,ly:y}}}
+function move(x,y){if(aim){aim.x=x;aim.y=y}else if(touch){const dy=y-touch.ly;touch.ly=y;P.target=(P.target??0)+dy}}
+function up(){if(aim&&st=='aim'){const dx=(aim.x0-aim.x)/S,dy=(aim.y0-aim.y)/S;const pw=Math.min(Math.hypot(dx,dy),220)/220;if(pw>.12){const pow=(9+G.up.sling*2.4)*(.45+.55*pw);let a=Math.atan2(dy,Math.max(dx,10));a=Math.max(-.2,Math.min(1.1,a));P.vx=pow*Math.cos(a)+3;P.vy=-pow*Math.sin(a);st='fly';SFX.launch();engineOn(true)}aim=null}touch=null}
+C.addEventListener('pointerdown',e=>down(e.clientX,e.clientY));addEventListener('pointermove',e=>move(e.clientX,e.clientY));addEventListener('pointerup',up);addEventListener('pointercancel',up);
+addEventListener('keydown',e=>{if(st=='fly'){if(e.key=='ArrowUp')P.target=(P.target??0)-60;if(e.key=='ArrowDown')P.target=(P.target??0)+60}if(st=='aim'&&e.key==' '){aim={x0:300,y0:300,x:140,y:380};up()}});
+// ---------- update ----------
+function update(){t++;if(st!='fly')return;const u=G.up,L=LV[lv],gy=groundY();
+ // steering: swipe accumulates a pitch nudge
+ const steer=.035+u.tail*.012;if(P.target){const n=Math.max(-40,Math.min(40,P.target));P.vy+=n*steer*.12;P.target-=n*(.25+u.tail*.05);if(Math.abs(P.target)<1)P.target=0}
+ // power
+ if(P.fuel>0){P.fuel-=.0022/P.fuelMax*1.0;P.vx+= (P.vx<6+u.prop*.8)?.06:0;P.vy-=.05;if(P.fuel<=0){engineOn(false)}}
+ const lift=.12+u.wings*.03;P.vy+=.28-Math.min(lift*P.vx/8,.25);P.vy*=.985;P.vx*=.9985-(u.wings*.0002);P.vx=Math.max(P.vx,2.2);
+ if(P.y<40){P.y=40;P.vy=Math.max(P.vy,0)}
+ // clouds
+ for(const c of clouds){const dx=P.x-c.x,dy=P.y-c.y;if(dx*dx+dy*dy<c.r*c.r){P.vy+=.35;P.vx*=.985;if(!c.hit){c.hit=1;SFX.bump()}}else c.hit=0}
+ for(const it of items)if(!it.got&&Math.abs(it.x-P.x)<50&&Math.abs(it.y-P.y)<50){it.got=1;if(it.k=='b'){runB++;SFX.coin()}else{runB+=10;pairs++;SFX.pair()}for(let k=0;k<10;k++)parts.push({x:it.x,y:it.y,vx:Math.random()*6-3,vy:Math.random()*6-3,l:30})}
+ P.x+=P.vx;P.y+=P.vy;P.ang=Math.atan2(P.vy,P.vx);cam=P.x-W/S*.3;
+ parts=parts.filter(p=>(p.x+=p.vx,p.y+=p.vy,--p.l>0));
+ if(P.y>gy-18){P.y=gy-18;const atEnd=P.x>L.len-350;if(atEnd){finish(true)}else{finish(false)}}
+ if(P.x>L.len+250&&st=='fly')finish(true);
+ $('bl').textContent='✨ '+(G.b+runB)}
+function finish(win){st='done';engineOn(false);G.b+=runB;let html;
+ if(win){SFX.win();if(G.unl<lv+2&&lv+1<LV.length)G.unl=lv+2;save();const s=LV[lv].story;
+  setTimeout(()=>{$('storyc').innerHTML=`<h2>📖 ${s.t}</h2>${s.p.map(x=>`<p>${x}</p>`).join('')}<p class="verse">${s.v}<br><b>— ${s.r}</b></p><p>You earned <b>${runB}</b> blessings ✨${lv==1?` and found <b>${pairs}</b> animal pairs!`:''}</p><button class="g" onclick="show('title')">${lv+1<LV.length?'Next Adventure ▶':'Home 🏠'}</button><button class="b" onclick="openShop()">🔧 Workshop</button>`;show('story')},900)}
+ else{save();SFX.bump();setTimeout(()=>{const pct=Math.round(Math.min(P.x/LV[lv].len,1)*100);$('endc').innerHTML=`<h2>Soft landing! 🌾</h2><p>You flew <b>${pct}%</b> of the way and gathered <b>${runB}</b> blessings ✨</p><p>Upgrade your plane in the Workshop to fly farther!</p><button class="g" onclick="startLevel(${lv})">Try Again 🔁</button><button class="b" onclick="openShop()">🔧 Workshop</button><button onclick="show('title')">🏠</button>`;show('end')},700)}}
+// ---------- draw ----------
+function sparkle(x,y,r,heart){const g=X.createRadialGradient(x,y,0,x,y,r*2);g.addColorStop(0,'rgba(255,240,150,.9)');g.addColorStop(1,'rgba(255,215,0,0)');X.fillStyle=g;X.beginPath();X.arc(x,y,r*2,0,7);X.fill();X.fillStyle='#ffc81e';X.strokeStyle='#fff6b0';X.lineWidth=2;X.beginPath();
+ if(heart){X.moveTo(x,y+r*.8);X.bezierCurveTo(x-r*1.4,y-r*.2,x-r*.6,y-r*1.2,x,y-r*.4);X.bezierCurveTo(x+r*.6,y-r*1.2,x+r*1.4,y-r*.2,x,y+r*.8)}else{for(let i=0;i<8;i++){const a=i*Math.PI/4,rr=i%2?r*.4:r;X.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr)}}X.closePath();X.fill();X.stroke()}
+function cloud(x,y,r,col){X.fillStyle=col;for(const[a,b,c]of[[0,0,1],[-.8,.2,.7],[.8,.2,.7],[-.4,-.4,.7],[.4,-.35,.75]]){X.beginPath();X.arc(x+a*r,y+b*r,c*r,0,7);X.fill()}}
+function plane(){const u=G.up;X.save();X.translate(P.x-cam,P.y);X.rotate(Math.max(-.6,Math.min(.6,P.ang)));const wood=['#b07a3e','#c48a4a','#d9a05b','#e8b84d','#f0c040','#ffd34d'];
+ // tail
+ X.fillStyle=u.tail>2?'#d9534f':wood[u.tail];X.beginPath();X.moveTo(-48,-2);X.lineTo(-70,-30-u.tail*4);X.lineTo(-58,-2);X.fill();
+ // body
+ const bc=u.wings+u.prop+u.tail+u.sling;X.fillStyle=bc>8?'#4a90d9':bc>3?'#d9a05b':'#a8743a';X.beginPath();X.ellipse(0,0,56,15,0,0,7);X.fill();X.strokeStyle='#6b4520';X.lineWidth=2;X.stroke();
+ if(bc<=3){X.strokeStyle='#8a5a2a';for(let i=-40;i<50;i+=18){X.beginPath();X.moveTo(i,-12);X.lineTo(i,12);X.stroke()}}
+ X.fillStyle='#bfe6ff';X.beginPath();X.arc(14,-10,9,Math.PI,0);X.fill();
+ // wings
+ const wl=34+u.wings*7;X.fillStyle=u.wings>2?'#fff':wood[u.wings];X.beginPath();X.ellipse(0,4,wl,7,0,0,7);X.fill();X.stroke();if(u.wings>=4){X.fillStyle='#f5a623';X.beginPath();X.ellipse(0,4,wl,2,0,0,7);X.fill()}
+ // propeller
+ X.fillStyle='#555';X.fillRect(54,-4,6,8);const pr=12+u.prop*3,spin=P.fuel>0&&st=='fly'?t*.8:0;X.fillStyle=u.prop>2?'#f0c040':'#7a4e20';X.save();X.translate(60,0);X.scale(.3,1);X.rotate(spin);X.fillRect(-3,-pr,6,pr*2);X.restore();
+ X.restore()}
+function draw(){const L=LV[lv],sw=W/S,gy=groundY();X.save();X.scale(S,S);
+ const g=X.createLinearGradient(0,0,0,gy);g.addColorStop(0,L.sky[0]);g.addColorStop(1,L.sky[1]);X.fillStyle=g;X.fillRect(0,0,sw,820);
+ if(lv==0){X.fillStyle='#fff3a0';X.beginPath();X.arc(sw-160,120,60,0,7);X.fill()}
+ // far hills parallax
+ X.fillStyle=lv==0?'#8fd77a':'#6b8aa5';for(let i=-1;i<sw/300+2;i++){const x=i*300-(cam*.3%300);X.beginPath();X.arc(x,gy+40,200,Math.PI,0);X.fill()}
+ for(let i=0;i<8;i++){const x=((i*260-cam*.15)%(sw+300)+sw+300)%(sw+300)-150;cloud(x,80+(i%3)*50,30,'rgba(255,255,255,.7)')}
+ X.fillStyle=L.ground;X.fillRect(0,gy,sw,820-gy);
+ if(lv==1){X.fillStyle='rgba(255,255,255,.3)';for(let x=-(cam%80);x<sw;x+=80){X.beginPath();X.arc(x,gy+6,20,0,Math.PI);X.fill()}}
+ // deco
+ for(const d of deco){const x=d.x-cam*1;if(x<-100||x>sw+100)continue;if(lv==0){if(d.t==0){X.fillStyle='#7a4e20';X.fillRect(x-6,gy-70*d.s,12,70*d.s);X.fillStyle='#3fa34d';X.beginPath();X.arc(x,gy-80*d.s,38*d.s,0,7);X.fill();X.fillStyle='#e94f4f';X.beginPath();X.arc(x+12*d.s,gy-78*d.s,6,0,7);X.fill()}else if(d.t==1){X.font=28*d.s+'px serif';X.fillText(['🌸','🌼','🌷'][Math.floor(d.x)%3],x,gy+4)}else{X.font=34*d.s+'px serif';X.fillText(['🐇','🦌','🦋','🐑'][Math.floor(d.x)%4],x,gy-4-(Math.floor(d.x)%4==2?60:0))}}}
+ // landing zone
+ const lx=L.len-350-cam;if(lv==0){X.fillStyle='#c9a86a';X.fillRect(lx,gy-4,700,10);X.font='bold 30px sans-serif';X.fillStyle='#4a3210';X.fillText('🌳 Land here! 🌳',lx+180,gy-140);X.fillStyle='#7a4e20';X.fillRect(lx+330,gy-120,20,120);X.fillStyle='#2e8b3d';X.beginPath();X.arc(lx+340,gy-150,70,0,7);X.fill();for(let k=0;k<6;k++){X.fillStyle='#e33';X.beginPath();X.arc(lx+300+k*15,gy-150+(k%2)*30,8,0,7);X.fill()}}
+ else{X.fillStyle='#8b5a2b';X.beginPath();X.moveTo(lx-20,gy-60);X.lineTo(lx+720,gy-60);X.lineTo(lx+640,gy+20);X.lineTo(lx+60,gy+20);X.fill();X.fillStyle='#a8743a';X.fillRect(lx+150,gy-150,400,90);X.fillStyle='#6b4520';X.beginPath();X.moveTo(lx+130,gy-150);X.lineTo(lx+350,gy-220);X.lineTo(lx+570,gy-150);X.fill();X.fillStyle='#c8963e';X.fillRect(lx,gy-66,700,8);X.font='bold 30px sans-serif';X.fillStyle='#fff';X.fillText("Land on the Ark!",lx+230,gy-250);X.font='34px serif';X.fillText('🦒🦒 🐘🐘',lx+220,gy-90)}
+ // items
+ for(const it of items){if(it.got)continue;const x=it.x-cam;if(x<-60||x>sw+60)continue;const bob=Math.sin(t*.08+it.x)*6;if(it.k=='b')sparkle(x,it.y+bob,13,(it.x|0)%3==0);else{X.fillStyle='rgba(255,255,255,.85)';X.beginPath();X.arc(x,it.y+bob,40,0,7);X.fill();X.strokeStyle='#f0c040';X.lineWidth=4;X.stroke();X.font='30px serif';X.textAlign='center';X.fillText(it.a+it.a,x,it.y+bob+11);X.textAlign='left'}}
+ for(const c of clouds){const x=c.x-cam;if(x<-200||x>sw+200)continue;cloud(x,c.y,c.r*.75,'#7b8794');X.strokeStyle='rgba(180,210,255,.8)';X.lineWidth=3;for(let k=0;k<4;k++){const rx=x-c.r*.6+k*c.r*.4,ry=c.y+c.r*.5+((t*3+k*20)%60);X.beginPath();X.moveTo(rx,ry);X.lineTo(rx-4,ry+14);X.stroke()}}
+ for(const p of parts){sparkle(p.x-cam,p.y,4)}
+ // slingshot
+ const sx=120-cam;X.strokeStyle='#6b4520';X.lineWidth=12;X.beginPath();X.moveTo(sx,gy);X.lineTo(sx,gy-120);X.lineTo(sx-30,gy-180);X.moveTo(sx,gy-120);X.lineTo(sx+30,gy-180);X.stroke();
+ if(st=='aim'){let px=120,py=gy-170;if(aim){const dx=(aim.x-aim.x0)/S,dy=(aim.y-aim.y0)/S,m=Math.min(Math.hypot(dx,dy),220),a=Math.atan2(dy,dx);px+=Math.cos(a)*m*.5;py+=Math.sin(a)*m*.5}P.x=px;P.y=py;X.strokeStyle=G.up.sling>2?'#d9534f':'#c8963e';X.lineWidth=5+G.up.sling;X.beginPath();X.moveTo(sx-30,gy-180);X.lineTo(px-cam-40,py);X.lineTo(sx+30,gy-180);X.stroke();
+  X.fillStyle='rgba(255,255,255,.9)';X.font='bold 34px sans-serif';X.textAlign='center';X.fillText(aim?'Let go to fly! ✈️':'👆 Pull back the slingshot, then let go!',sw/2,180);X.textAlign='left'}
+ plane();
+ // fuel bar
+ if(st=='fly'||st=='aim'){X.fillStyle='rgba(255,255,255,.8)';X.fillRect(16,100,240,26);X.fillStyle='#f5a623';X.fillRect(19,103,234*Math.max(P.fuel,0),20);X.fillStyle='#4a3210';X.font='bold 18px sans-serif';X.fillText('🌀 Propeller power',24,120);
+  const pr=Math.min(P.x/L.len,1);X.fillStyle='rgba(255,255,255,.8)';X.fillRect(sw/2-200,100,400,14);X.fillStyle='#5cb85c';X.fillRect(sw/2-200,100,400*pr,14);X.font='26px serif';X.fillText('✈️',sw/2-215+400*pr,96);X.fillText(lv?'🚢':'🌳',sw/2+205,118)}
+ X.restore()}
+function loop(){update();if(st!='menu')draw();else drawMenu();requestAnimationFrame(loop)}
+function drawMenu(){lv=0;P=P||{x:200,y:300,vx:6,vy:0,ang:0,fuel:1};cam=0;const L=LV[0];X.save();X.scale(S,S);const g=X.createLinearGradient(0,0,0,820);g.addColorStop(0,L.sky[0]);g.addColorStop(1,L.sky[1]);X.fillStyle=g;X.fillRect(0,0,W/S,820);for(let i=0;i<6;i++)sparkle((i*233+t)%(W/S),100+i*90,10,i%2);X.restore()}
+// ---------- iOS hint ----------
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform=='MacIntel'&&navigator.maxTouchPoints>1);
+const standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+function hideHint(){$('hint').style.display='none';G.hint=true;save()}
+if((isIOS&&!standalone&&!G.hint)||location.search.includes('hint'))setTimeout(()=>$('hint').style.display='block',1500);
+// ---------- debug/screenshot hooks ----------
+const Q=new URLSearchParams(location.search);
+if(Q.get('shot')=='noahfly'){G={b:140,up:{wings:2,tail:1,prop:2,sling:1},unl:2,muted:true,hint:true};startLevel(1);P.vx=7;P.vy=-1;st='fly';P.x=1500;P.y=330;for(let i=0;i<20;i++)update();P.fuel=.6;
+ const c=clouds.find(c=>c.x>P.x+150);if(c){c.x=P.x+330;c.y=360}const a=items.find(i=>i.k=='a'&&i.x>P.x);if(a){a.x=P.x+600;a.y=260}st='fly';G.muted=true;Q.get('freeze')&&setTimeout(()=>st='frozen',300)}
+if(Q.get('shot')=='noahstory'){G={b:180,up:{wings:2,tail:1,prop:2,sling:1},unl:2,muted:true,hint:true};startLevel(1);P.x=6200;runB=47;pairs=3;finish(true)}
+renderTitle();show(st=='menu'?'title':null);if(Q.get('shot'))show(null),Q.get('shot')=='noahstory'&&setTimeout(()=>show('story'),1000);
+loop();
+</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js',{scope:'./'});</script></body></html>
