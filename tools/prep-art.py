@@ -16,6 +16,7 @@ OUT = ROOT / "art"
 SCENES = {
     "bg-eden.jpg": "bg-eden.webp",
     "bg-noah.jpg": "bg-noah.webp",
+    "bg-abraham.jpg": "bg-abraham.webp",
     "end-tree-of-life.jpg": "end-tree.webp",
     "end-ark.jpg": "end-ark.webp",
 }
@@ -180,6 +181,19 @@ def main():
     crop_row("planes-noah-early.jpg", ["noah-1.png", None, "noah-3.png", "noah-4.png"])
     crop_grid("animals.jpg", ANIMALS, 4, 3)
     crop_grid("trophies.jpg", TROPHIES, 4, 3)
+    crop_grid("planes-abraham.jpg", [f"abr-{i}.png" for i in range(1, 5)], 2, 2)
+    # The tent scene is painted inside a white field, so key the whole picture.
+    key_im = Image.open(SRC / "end-abraham-stars.jpg").convert("RGB")
+    keyed = key_white(key_im)
+    bbox = keyed.getbbox()
+    if bbox:
+        keyed = keyed.crop(bbox)
+    if keyed.width > 720:
+        nh = round(keyed.height * 720 / keyed.width)
+        keyed = keyed.resize((720, nh), Image.Resampling.LANCZOS)
+    dest = OUT / "end-abraham.webp"
+    keyed.save(dest, "WEBP", quality=72, method=6)
+    print(f"end-abraham.webp: {keyed.size} {dest.stat().st_size} bytes")
 
 
 if __name__ == "__main__":
