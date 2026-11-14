@@ -136,7 +136,9 @@ function rs(){const d=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight
 function vScale(){return S*ZOOM}
 function worldW(){return W/vScale()}
 function worldH(){return H/vScale()}
-function vOff(){return Math.max(0,worldH()-900)}
+function vOff(){if(st==='wave'||st==='dart'||st==='menu'||st==='win')return Math.max(0,worldH()-900);const botPx=16+22*vScale();return (H-botPx)/vScale()-GY}
+function flightTop(){const hudPx=8+78+36+20*vScale();return hudPx/vScale()-vOff()}
+function bandY(p){const top=flightTop();return top+(GY-top)*p}
 const $=id=>document.getElementById(id);
 const M=8, LEVEL_M=5000, AREA_M=5000, AREA=AREA_M*M, BLEND=320*M, GY=732, COL_NEED=30;
 const LEVELS=[
@@ -228,34 +230,34 @@ function hud(){const on=st==='aim'||st==='fly'||st==='skid'||st==='bump';$('slim
 function fuelHud(){const el=$('fuelhud'),on=!!(P&&P.fuelMax&&(st==='aim'||st==='fly'||st==='skid'||st==='bump'));el.hidden=!on;const hh=$('healthhud');hh.hidden=!on;if(!on){el.classList.remove('low','crit');hh.classList.remove('low','crit');return}const frac=Math.max(0,Math.min(1,P.fuel/P.fuelMax));$('ffill').style.width=(frac*100)+'%';el.classList.toggle('low',frac<=.34&&frac>.16);el.classList.toggle('crit',frac<=.16);const hf=P.hpMax?Math.max(0,Math.min(1,P.hp/P.hpMax)):1;$('hfill').style.width=(hf*100)+'%';hh.classList.toggle('low',hf<=.45&&hf>.22);hh.classList.toggle('crit',hf<=.22)}
 function mulberry(seed){let s=seed>>>0;return ()=>{s=(Math.imul(1664525,s)+1013904223)>>>0;return s/4294967296}}
 function buildSegment(){const id=cur,rnd=mulberry((id+1)*9973+17),hard=1+id*0.18;
- for(let m=80;m<LEVEL_M-260;m+=48){const x=m*M;things.push({x,y:200,k:'b',got:0});things.push({x:x+22,y:540+Math.sin(m*.04)*24,k:'b',got:0});
-  if(m%220<26)for(let k=1;k<=3;k++)things.push({x:x+k*40,y:340-k*22,k:'b',got:0})}
- for(let m=420;m<LEVEL_M-600;m+=700)things.push({x:m*M,y:390,k:'up',r:120});
+ for(let m=80;m<LEVEL_M-260;m+=48){const x=m*M,span=GY-flightTop();things.push({x,y:bandY(0.22),k:'b',got:0});things.push({x:x+22,y:bandY(0.78)+Math.sin(m*.04)*span*0.02,k:'b',got:0});
+  if(m%220<26)for(let k=1;k<=3;k++)things.push({x:x+k*40,y:bandY(0.5)-k*span*0.035,k:'b',got:0})}
+ for(let m=420;m<LEVEL_M-600;m+=700)things.push({x:m*M,y:bandY(0.5),k:'up',r:120});
  const left=BOOK.filter(a=>!G.found.a.includes(a.id));
  const bag=(left.length?left:BOOK).slice();
  const count=id===1?4:2;
- for(let n=0;n<count&&bag.length;n++){const j=Math.floor(rnd()*bag.length),a=bag.splice(j,1)[0];things.push({x:(700+n*900)*M,y:440,k:'a',id:a.id,pair:a.pair,got:0})}
+ for(let n=0;n<count&&bag.length;n++){const j=Math.floor(rnd()*bag.length),a=bag.splice(j,1)[0];things.push({x:(700+n*900)*M,y:bandY(0.55),k:'a',id:a.id,pair:a.pair,got:0})}
  const list=id===0?EDEN_MAIN.concat(EDEN_BONUS):id===1?NOAH_T:ABR_T;
- list.forEach((tr,n)=>{if(G.found.t.includes(tr.id))return;things.push({x:(560+n*420)*M,y:tr.rare?280:360,k:'t',id:tr.id,got:0})});
+ list.forEach((tr,n)=>{if(G.found.t.includes(tr.id))return;things.push({x:(560+n*420)*M,y:tr.rare?bandY(0.28):bandY(0.62),k:'t',id:tr.id,got:0})});
  placeFuel(id);placeCols(id);placeHazards(id,hard);placeHeal(id);
  things.push({x:(LEVEL_M-120)*M,y:360,k:'fin',id,got:0});
 }
-function placeFuel(id){let m=id===0?140:220,n=0;while(m<LEVEL_M-420){const gap=(m<1600?200:340)*(id?1:1);things.push({x:m*M+20,y:n%2?520:220,k:'f',got:0});m+=gap;n++}}
-function placeCols(id){let m=180;while(m<LEVEL_M-500){const kind=id===0?(m%360<180?'leaf':'fruit'):id===1?'pair':'star';things.push({x:m*M,y:260+(m%3)*80,k:'col',kind,got:0});m+=170}}
-function placeHazards(id,hard){const end=LEVEL_M-700;
- if(id===0){let m=340;while(m<end){const gap=Math.max(280,(560-m*.035)/hard);const y=210+((m/200)|0)%3*120;things.push({k:'sn',x0:m*M,x:m*M,y0:y,y,phase:m*.02,amp:52});m+=gap}
-  m=620;while(m<end){things.push({k:'bird',x0:m*M,x:m*M,y0:200,y:200,phase:m*.03,amp:110});m+=Math.max(340,560/hard)}
-  m=860;while(m<end){things.push({k:'vine',x:m*M,phase:m*.02,len:200});m+=Math.max(420,640/hard)}}
- else if(id===1){let m=380;while(m<end){const gap=Math.max(300,(640-m*.035)/hard);things.push({k:'storm',x:m*M,y:170+(m%3)*18,phase:(m%9)*.37,period:3.3,warn:1,bolt:.45,boltLen:420});m+=gap}
-  m=300;while(m<end){things.push({k:'deb',x:m*M,y:610});m+=Math.max(260,420/hard)}
-  m=420;while(m<end){things.push({k:'gust',x:m*M,y:360,w:160,pow:(m%2?1:-1)});m+=Math.max(320,500/hard)}}
- else{let m=340;while(m<end){const gap=Math.max(260,(560-m*.03)/hard);things.push({k:'heat',x:m*M,h:200+(m%4)*28,phase:m*.02});m+=gap}
-  m=480;while(m<end){things.push({k:'hawk',x0:m*M,x:m*M,y0:240,y:240,phase:m*.04,amp:120});m+=Math.max(280,460/hard)}
-  m=560;while(m<end){things.push({k:'devil',x:m*M,h:260,phase:m*.03});m+=Math.max(340,520/hard)}}}
-function placeHeal(id){things.push({k:'heal',kind:id===0?'fruit':id===1?'ring':'jar',x:(LEVEL_M-280)*M,y:320,got:0})}
+function placeFuel(id){let m=id===0?140:220,n=0;while(m<LEVEL_M-420){const gap=(m<1600?200:340)*(id?1:1);things.push({x:m*M+20,y:n%2?bandY(0.78):bandY(0.22),k:'f',got:0});m+=gap;n++}}
+function placeCols(id){let m=180;while(m<LEVEL_M-500){const kind=id===0?(m%360<180?'leaf':'fruit'):id===1?'pair':'star';things.push({x:m*M,y:bandY(0.18+(m%3)*0.28),k:'col',kind,got:0});m+=170}}
+function placeHazards(id,hard){const end=LEVEL_M-700,span=GY-flightTop();
+ if(id===0){let m=340;while(m<end){const gap=Math.max(280,(560-m*.035)/hard);const lane=[0.2,0.52,0.8][((m/200)|0)%3];things.push({k:'sn',x0:m*M,x:m*M,y0:bandY(lane),y:bandY(lane),phase:m*.02,amp:span*0.04});m+=gap}
+  m=620;while(m<end){const y=bandY(0.3);things.push({k:'bird',x0:m*M,x:m*M,y0:y,y,phase:m*.03,amp:span*0.1});m+=Math.max(340,560/hard)}
+  m=860;while(m<end){things.push({k:'vine',x:m*M,y0:bandY(0.02),phase:m*.02,len:span*0.36});m+=Math.max(420,640/hard)}}
+ else if(id===1){let m=380;while(m<end){const gap=Math.max(300,(640-m*.035)/hard);const y=bandY(0.06+(m%3)*0.025),boltEnd=bandY(0.68);things.push({k:'storm',x:m*M,y,phase:(m%9)*.37,period:3.3,warn:1,bolt:.45,boltLen:Math.max(80,boltEnd-y)});m+=gap}
+  m=300;while(m<end){const y=bandY(0.91);things.push({k:'deb',x:m*M,y,y0:y});m+=Math.max(260,420/hard)}
+  m=420;while(m<end){things.push({k:'gust',x:m*M,y:bandY(0.48),w:160,pow:(m%2?1:-1)});m+=Math.max(320,500/hard)}}
+ else{let m=340;while(m<end){const gap=Math.max(260,(560-m*.03)/hard);things.push({k:'heat',x:m*M,h:span*(0.32+(m%4)*0.06),phase:m*.02});m+=gap}
+  m=480;while(m<end){const y=bandY(0.24);things.push({k:'hawk',x0:m*M,x:m*M,y0:y,y,phase:m*.04,amp:span*0.08});m+=Math.max(280,460/hard)}
+  m=560;while(m<end){things.push({k:'devil',x:m*M,h:span*0.3,phase:m*.03});m+=Math.max(340,520/hard)}}}
+function placeHeal(id){things.push({k:'heal',kind:id===0?'fruit':id===1?'ring':'jar',x:(LEVEL_M-280)*M,y:bandY(0.42),got:0})}
 function ensureWorld(x){if(!nextSeg){buildSegment();nextSeg=1}things=things.filter(it=>it.x>x-4200||it.k==='fin')}
 function startLevel(i){if(i>G.open||i>2)return;cur=i;startRun()}
-function startRun(){ac();SFX.click();st='aim';const tank=tankSize(),hp=hpSize(),x0=Math.max(260,worldW()*0.26);P={x:x0,y:500,vx:speed(),vy:0,ang:-.25,fuel:tank,fuelMax:tank,hp,hpMax:hp,inv:0,shake:0,flash:0,hits:0,last:'',assist:0,air:0,boost:0,bounces:0,puffs:[],sput:0,smoke:0,bump:0,wobT:0,inHeat:0};cam=Math.max(0,x0-worldW()*0.26);things=[];nextSeg=0;runB=0;runCol=0;runBest=G.lb[cur]||0;passed=0;runAreas=[LEVELS[cur].n];runStories=[];aim=null;touch=null;trail=[];boostCd=0;ensureWorld(0);show(null);hud()}
+function startRun(){ac();SFX.click();st='aim';const tank=tankSize(),hp=hpSize(),x0=Math.max(260,worldW()*0.26);P={x:x0,y:bandY(0.48),vx:speed(),vy:0,ang:-.25,fuel:tank,fuelMax:tank,hp,hpMax:hp,inv:0,shake:0,flash:0,hits:0,last:'',assist:0,air:0,boost:0,bounces:0,puffs:[],sput:0,smoke:0,bump:0,wobT:0,inHeat:0};cam=Math.max(0,x0-worldW()*0.26);things=[];nextSeg=0;runB=0;runCol=0;runBest=G.lb[cur]||0;passed=0;runAreas=[LEVELS[cur].n];runStories=[];aim=null;touch=null;trail=[];boostCd=0;ensureWorld(0);show(null);hud()}
 function pullOf(a){if(!a)return {dist:0,ang:-0.55};const dx=(a.x-a.x0)/vScale(),dy=(a.y-a.y0)/vScale(),dist=Math.min(360,Math.hypot(dx,dy));let ang=Math.atan2(-dy,-dx);if(dist<12||!(ang<-0.18&&ang>-1.4))ang=-0.55;ang=Math.max(-1.25,Math.min(-0.22,ang));return {dist,ang}}
 function launchPower(dist){const pull=Math.min(1,Math.max(0,dist)/260),mult=1+(G.up.launch||0)*0.16+G.plane*0.02;return (8.4+pull*10)*mult}
 function launchFrom(a){const p=pullOf(a),mag=launchPower(p.dist);P.vx=Math.cos(p.ang)*mag*0.36+speed()*0.85;P.vy=Math.sin(p.ang)*mag*0.58;P.assist=.55;P.ang=p.ang*.5;st='fly';aim=null;touch=null;SFX.twang()}
@@ -269,8 +271,10 @@ function step(k,dt){const hold=!!touch,powered=P.fuel>0&&P.hp>0,climbing=powered
  P.vy+=(target-P.vy)*(climbing?0.22:powered?0.2:0.1)*k*steer;
  const vmax=powered?11.4:2.6;P.vy=Math.max(-vmax,Math.min(vmax,P.vy));
  if(!powered&&P.vy<0)P.vy+=(0.25-P.vy)*0.14*k;
- if(P.y<150){P.y=150;if(P.vy<0)P.vy=0}
  P.x+=P.vx*k;P.y+=P.vy*k;P.air+=dt;
+ const top=flightTop(),cush=Math.max(36,(GY-top)*0.07);
+ if(P.y<top+cush&&P.vy<0){const u=Math.max(0,(P.y-top)/cush);P.vy*=0.35+0.65*u}
+ if(P.y<top){P.y+=(top-P.y)*0.4;if(P.vy<0)P.vy*=0.5}
  if(P.fuel>0)P.fuel=Math.max(0,P.fuel-(climbing?8:1.45)*dt-(P.inHeat?7*dt:0));
  if(P.wobT>0){P.wobT-=dt;P.vy+=Math.sin(t*.9)*0.55}
  if(P.assist>0)P.assist-=dt;if(P.boost>0)P.boost-=dt;if(boostCd>0)boostCd-=dt;
@@ -289,7 +293,7 @@ function checkHazards(){if(!P||P.hp<=0)return;P.inHeat=0;for(const it of things)
  if(it.k==='gust'&&Math.abs(it.x-P.x)<it.w&&Math.abs(it.y-P.y)<90)P.vy+=it.pow*0.22;
  if(P.inv>0)continue;
  if(it.k==='sn'||it.k==='bird'||it.k==='hawk'){const rad=it.k==='sn'?34:30;if(Math.abs(it.x-P.x)<rad&&Math.abs(it.y-P.y)<rad-4){hurt(it.k);return}}
- else if(it.k==='vine'){const ang=it.ang||0,tipx=it.x+Math.sin(ang)*it.len,tipy=220+it.len*.4;let hit=0;for(let i=0;i<=6;i++){const u=i/6,o=1-u,px=o*o*it.x+2*o*u*(it.x+Math.sin(ang)*40)+u*u*tipx,py=o*o*80+2*o*u*180+u*u*tipy;if(Math.hypot(px-P.x,py-P.y)<30)hit=1}if(hit){hurt('vine');return}}
+ else if(it.k==='vine'){let hit=0;for(let i=0;i<=6;i++){const p=vineAt(it,i/6);if(Math.hypot(p.x-P.x,p.y-P.y)<32)hit=1}if(hit){hurt('vine');return}}
  else if(it.k==='storm'&&stormMode(it)==='bolt'&&Math.abs(it.x-P.x)<34&&P.y>it.y+8&&P.y<it.y+it.boltLen){hurt('storm');return}
  else if(it.k==='deb'&&Math.abs(it.x-P.x)<34&&Math.abs(it.y-P.y)<26){hurt('deb');return}
  else if(it.k==='devil'&&Math.abs(it.x-P.x)<36&&P.y>GY-it.h&&P.y<GY-40){P.vy-=3.2;P.wobT=Math.max(P.wobT,.7)}}}
@@ -297,7 +301,7 @@ function moveHazards(){for(const it of things){
  if(it.k==='sn'){it.x=it.x0+Math.sin(t*.05+it.phase)*30;it.y=it.y0+Math.sin(t*.08+it.phase)*it.amp}
  else if(it.k==='bird'||it.k==='hawk'){it.x=it.x0+Math.sin(t*.04+it.phase)*50;it.y=it.y0+Math.sin(t*(it.k==='bird'?.11:.07)+it.phase)*it.amp}
  else if(it.k==='vine')it.ang=Math.sin(t*.045+it.phase)*.95
- else if(it.k==='deb')it.y=610+Math.sin(t*.05+it.x)*.8*8}}
+ else if(it.k==='deb')it.y=(it.y0||bandY(0.91))+Math.sin(t*.05+it.x)*12}}
 function skid(){startBump()}
 function startBump(){if(st==='bump'||st==='done')return;st='bump';touch=null;aim=null;P.bump=0;P.y=GY;P.wings=[{x:P.x-10,y:P.y-8,vx:-2.4,vy:-3.6,rot:-.2},{x:P.x+10,y:P.y-8,vx:2.6,vy:-3.2,rot:.2}];P.stars=[];for(let i=0;i<6;i++)P.stars.push({a:i*1.05,r:16+i*3});SFX.bump()}
 function stepBump(k,dt){P.bump+=dt;P.y=GY-Math.abs(Math.sin(Math.min(1.2,P.bump)*6))*Math.max(0,96-P.bump*55);P.ang=Math.sin(P.bump*5)*.5;P.vx*=Math.pow(.88,k);P.x+=P.vx*k;if(P.wings)for(const w of P.wings){w.x+=w.vx*k*1.3;w.y+=w.vy*k;w.vy+=.12*k;w.rot+=.2*k}if(P.bump>1.45)endRun()}
@@ -388,7 +392,8 @@ function drawHeal(it){const x=it.x-cam,y=it.y+Math.sin(t*.08+it.x)*6;const g=X.c
  drawArrow(x,y)}
 function drawCol(x,it){const y=it.y+Math.sin(t*.08+x)*6;if(it.kind==='leaf'){X.fillStyle='#3aaa4a';X.beginPath();X.ellipse(x,y,16,8,-.6,0,7);X.fill()}else if(it.kind==='fruit'){X.fillStyle='#f08a28';X.beginPath();X.arc(x,y,12,0,7);X.fill();X.fillStyle='#3aaa4a';X.fillRect(x-2,y-16,4,8)}else if(it.kind==='pair'){X.fillStyle='#f0c14a';X.beginPath();X.arc(x-8,y,10,0,7);X.arc(x+8,y,10,0,7);X.fill()}else{X.fillStyle='#ffe14a';X.beginPath();for(let i=0;i<5;i++){const th=i*Math.PI*2/5-Math.PI/2,r=i%2?6:14;i?X.lineTo(x+Math.cos(th)*r,y+Math.sin(th)*r):X.moveTo(x+Math.cos(th)*r,y+Math.sin(th)*r)}X.closePath();X.fill()}}
 function drawFlyer(it){const x=it.x-cam,y=it.y,flap=Math.sin(t*.25)*10;X.fillStyle=it.k==='hawk'?'#8a5a2a':'#5a7a9a';X.beginPath();X.moveTo(x,y);X.lineTo(x-22,y-flap);X.lineTo(x-8,y);X.lineTo(x-22,y+flap);X.closePath();X.fill();X.beginPath();X.arc(x+10,y,7,0,7);X.fill()}
-function drawVine(it){const x=it.x-cam,ang=it.ang||0;X.strokeStyle='#2f8a3a';X.lineWidth=8;X.beginPath();X.moveTo(x,80);X.quadraticCurveTo(x+Math.sin(ang)*40,180,x+Math.sin(ang)*it.len,220+it.len*.4);X.stroke();X.fillStyle='#3aaa4a';X.beginPath();X.arc(x+Math.sin(ang)*it.len,220+it.len*.4,10,0,7);X.fill()}
+function vineAt(it,u){const ang=it.ang||0,y0=it.y0||flightTop(),len=it.len||200,o=1-u;const x0=it.x,x1=it.x+Math.sin(ang)*len*0.25,x2=it.x+Math.sin(ang)*len*0.9,y1=y0+len*0.45,y2=y0+len;return {x:o*o*x0+2*o*u*x1+u*u*x2,y:o*o*y0+2*o*u*y1+u*u*y2}}
+function drawVine(it){const a=vineAt(it,0),b=vineAt(it,0.5),c=vineAt(it,1);X.strokeStyle='#2f8a3a';X.lineWidth=8;X.beginPath();X.moveTo(a.x-cam,a.y);X.quadraticCurveTo(b.x-cam,b.y,c.x-cam,c.y);X.stroke();X.fillStyle='#3aaa4a';X.beginPath();X.arc(c.x-cam,c.y,10,0,7);X.fill()}
 function drawGust(x,it){X.strokeStyle='rgba(255,255,255,.75)';X.lineWidth=4;for(let i=0;i<3;i++){X.beginPath();X.moveTo(x-30,it.y-20+i*18);X.quadraticCurveTo(x,it.y-28+i*18,x+30*it.pow,it.y-16+i*18);X.stroke()}}
 function drawDevil(it){const x=it.x-cam,top=GY-it.h;X.strokeStyle='rgba(196,150,80,.9)';X.lineWidth=5;for(let i=0;i<3;i++){X.beginPath();X.ellipse(x,top+40+i*36,18+i*8,8,Math.sin(t*.2+i),0,7);X.stroke()}}
 function drawFinMark(x){if(st==='cut')return;X.save();X.globalAlpha=.9;X.strokeStyle='#fff6c8';X.lineWidth=6;X.strokeRect(x-18,250,36,220);X.restore()}
